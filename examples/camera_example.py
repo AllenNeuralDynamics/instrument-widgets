@@ -19,24 +19,24 @@ def scan_for_properties(device):
 
     return prop_dict
 
-# def device_change():
-#     """Simulate changing device properties"""
-#
-#     for i in range(0, 100):
-#         if i == 25:
-#             print('changing temperature')
-#             base.temperature = 25.0
-#         if i == 50:
-#             print('changing cdrh')
-#             base.cdrh = 'OFF'
-#         if i ==75:
-#             print('changing test_property')
-#             # Need to change whole dictionary to trigger update. DOES NOT WORK changing one item
-#             base.test_property = {"value0":"internal", "value1":"on"}
-#         if i ==99:
-#             print('changing power')
-#             base.power_setpoint_mw = 67.0
-#         sleep(.1)
+def device_change():
+    """Simulate changing device properties"""
+
+    for i in range(0, 100):
+        if i == 25:
+            print('changing exposure_time_ms')
+            base.exposure_time_ms = 2500.0
+        if i == 50:
+            print('changing pixel_type')
+            base.pixel_type = 'mono16'
+        if i ==75:
+            print('changing roi')
+            # Need to change whole dictionary to trigger update. DOES NOT WORK changing one item
+            base.roi = {'width_px': 1016, 'height_px': 2032, 'width_offset_px': 0, 'height_offest_px': 0}
+        if i ==99:
+            print('changing sensor_height_px')
+            base.sensor_height_px = 10640/2
+        sleep(.1)
 
 
 @Slot(str)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     base = BaseDeviceWidget(Camera, "examples.resources.simulated_camera", camera_properties)
     base.ValueChangedInside[str].connect(widget_property_changed)
 
-    # t1 = threading.Thread(target=device_change, args=())
-    # t1.start()
+    t1 = threading.Thread(target=device_change, args=())
+    t1.start()
 
     sys.exit(app.exec_())

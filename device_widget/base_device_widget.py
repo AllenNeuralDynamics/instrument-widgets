@@ -70,7 +70,7 @@ class BaseDeviceWidget(QWidget):
             if not getattr(attr, 'fset', False):  # Constant, unchangeable attribute
                 widgets[name].setDisabled(True)
 
-        return widgets
+        return widgets 
 
     def check_driver_variables(self, name: str):
         """Check if there is variable in device driver that has name of
@@ -90,7 +90,7 @@ class BaseDeviceWidget(QWidget):
         """Convenience function to build editable text boxes and add initial value and validator
                 :param name: name to emit when text is edited is changed
                 :param value: initial value to add to box"""
-        print(name)
+
         value_type = type(value)
         textbox = QLineEdit(str(value))
         name_lst = name.split('.')
@@ -131,24 +131,30 @@ class BaseDeviceWidget(QWidget):
 
         value = getattr(self, name)
         if type(value) != dict:     # single widget to set value for
-            widget = getattr(self, f'{name}_widget')
-            widget.blockSignals(True)   # block signal indicating change
-            widget_type = type(widget)
-            if widget_type == QLineEdit:
-                widget.setText(str(value))
-            elif widget_type == QComboBox:
-                widget.setCurrentText(str(value))
-            widget.blockSignals(False)
+            self._set_widget_text(name, value)
         else:
-            for k, v in value.items():      # multiple widgets to set values for. Assuming combo box, may change
-                widget = getattr(self, f'{name}.{k}_widget')
-                widget.blockSignals(True)  # block signal indicating change
-                widget.setCurrentText(v)
-                widget.blockSignals(False)
+            for k, v in value.items():      # multiple widgets to set values for
+                self._set_widget_text(f"{name}.{k}", v)
 
+
+    def _set_widget_text(self, name, value):
+        """Set widget text if widget is QLineEdit or QCombobox
+        :param name: widget name to set text to
+        :param value: value of text"""
+
+
+        widget = getattr(self, f'{name}_widget')
+        widget.blockSignals(True)  # block signal indicating change since changing internally
+        widget_type = type(widget)
+        if widget_type == QLineEdit:
+            widget.setText(str(value))
+        elif widget_type == QComboBox:
+            widget.setCurrentText(str(value))
+        widget.blockSignals(False)
 
     def __setattr__(self, name, value):
         """Overwrite __setattr__ to trigger update if property is changed"""
+
         self.__dict__[name] = value
         if currentframe().f_back.f_locals.get('self', None) is None:  # call from outside so update widgets
             self.ValueChangedOutside.emit(name)

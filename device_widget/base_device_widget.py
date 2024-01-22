@@ -44,25 +44,25 @@ class BaseDeviceWidget(QWidget):
 
             # Create combo boxes if there are preset options
             if input_specs := self.check_driver_variables(search_name):
-                boxes = {}
-                if arg_type == str or type(arg_type) == enum.EnumMeta:
-                    boxes[name] = self.create_combo_box(name, input_specs.keys())
-                    setattr(self, f"{name}_widget", boxes[name])  # add attribute for widget input for easy access
-                    curr_text = value if arg_type == str else value.name
-                    boxes[name].setCurrentText(curr_text)
-                elif arg_type == dict:
-                    for k, v in input_specs.items():
-                        label = QLabel(self.label_maker(k))
-                        box = self.create_combo_box(name + '.' + k, v.keys())
-                        setattr(self, f"{name}.{k}_widget", box)  # add attribute for widget input for easy access
-                        box.setCurrentText(value[k])
-                        boxes[k] = self.create_widget('V', l=label, q=box)
-                input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
-
+                widget_type = 'combo'
             # If no found options, create an editable text box
             else:
-                input_widgets[name] = self.create_text_box(name, value)
-                setattr(self, f"{name}_widget", input_widgets[name]) # add attribute for widget input for easy access
+                input_specs = value
+                widget_type = 'text'
+
+            boxes = {}
+            if arg_type in (str, int, float) or type(arg_type) == enum.EnumMeta:
+                options = input_specs.keys() if type(input_specs) == dict else value
+                boxes[name] = getattr(self, f'create_{widget_type}_box')(name, options)
+                setattr(self, f"{name}_widget", boxes[name])  # add attribute for widget input for easy access
+            elif arg_type == dict:
+                for k, v in input_specs.items():
+                    label = QLabel(self.label_maker(k))
+                    options = v.keys() if type(v)==dict else v
+                    box = getattr(self, f'create_{widget_type}_box')(f"{name}.{k}", options)
+                    setattr(self, f"{name}.{k}_widget", box)  # add attribute for widget input for easy access
+                    boxes[k] = self.create_widget('V', l=label, q=box)
+            input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
 
             widgets[name] = self.create_widget(struct='H', **input_widgets)
             widgets[name].setToolTip(attr.__doc__)  # Set tooltip to properties docstring
@@ -90,10 +90,15 @@ class BaseDeviceWidget(QWidget):
         """Convenience function to build editable text boxes and add initial value and validator
                 :param name: name to emit when text is edited is changed
                 :param value: initial value to add to box"""
-
+        print(name)
         value_type = type(value)
         textbox = QLineEdit(str(value))
-        textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
+        name_lst = name.split('.')
+        if len(name_lst) == 1:  # name refers to attribute
+            textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
+        else:  # name is a dictionary and key pair split by .
+            textbox.editingFinished.connect(lambda: getattr(self, name_lst[0]).__setitem__(name_lst[1], value_type(textbox.text())))
+
         textbox.editingFinished.connect(lambda: self.ValueChangedInside.emit(name))
         arg_type = type(value)
         if arg_type in (float, int):
@@ -108,12 +113,13 @@ class BaseDeviceWidget(QWidget):
 
         box = QComboBox()
         box.addItems(items)
-
         name_lst = name.split('.')
         if len(name_lst) == 1:  # name refers to attribute
             box.currentTextChanged.connect(lambda value: setattr(self, name, value))
+            box.setCurrentText(getattr(self, name))
         else:  # name is a dictionary and key pair split by .
             box.currentTextChanged.connect(lambda value: getattr(self, name_lst[0]).__setitem__(name_lst[1], value))
+            box.setCurrentText(getattr(self, name_lst[0]).__getitem__(name_lst[1]))
         # emit signal when changed so outside listener can update. needs to be after changing attribute
         box.currentTextChanged.connect(lambda: self.ValueChangedInside.emit(name))
         return box

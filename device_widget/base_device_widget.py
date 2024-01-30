@@ -1,33 +1,31 @@
 from qtpy.QtCore import Signal, Slot
 from qtpy.QtGui import QValidator, QIntValidator, QDoubleValidator
-from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout
+from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QMainWindow
 from inspect import signature, getfullargspec, currentframe, getfile
 import os
 import importlib
 import enum
+from pathlib import Path
 
-
-class BaseDeviceWidget(QWidget):
+class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
     ValueChangedInside = Signal((str,))
 
-    def __init__(self, device_class, device_driver: str, properties: dict):
+    def __init__(self, device_object, device_driver: str, properties: dict):
         """Base widget for devices like camera, laser, stage, ect. Widget will scan properties of
         device object and create editable inputs for each if not in device_widget class of device. If no device_widget
         class is provided, then all properties are exposed
-        :param device_class: class of device object
+        :param device_object: class or dictionary of device object
         :param device_driver: string of driver of device
         :param properties: dictionary contain properties displayed in widget as keys and initial values as values"""
 
         super().__init__()
-        self.device_class = device_class
+        self.device_object = device_object
         self.device_driver = importlib.import_module(device_driver)
         self.property_widgets = self.create_property_widgets(properties)
 
         widget = self.create_widget('V', **self.property_widgets)
-        self.setLayout(widget.layout())
-        self.show()
-
+        self.setCentralWidget(widget)
         self.ValueChangedOutside[str].connect(self.update_property_widget)  # Trigger update when property value changes
 
     def create_property_widgets(self, properties: dict):
@@ -38,10 +36,9 @@ class BaseDeviceWidget(QWidget):
         for name, value in properties.items():
             setattr(self, name, value)  # Add device properties as widget properties
             input_widgets = {'label': QLabel(self.label_maker(name))}
-            attr = getattr(self.device_class, name)
+            attr = getattr(self.device_object, name, '') if type(self.device_object) != dict else self.device_object[name]    # If device class
             arg_type = type(value)  # getfullargspec(getattr(attr, 'fset')).annotations
             search_name = arg_type.__name__ if arg_type.__name__ in dir(self.device_driver) else name
-
             # Create combo boxes if there are preset options
             if input_specs := self.check_driver_variables(search_name):
                 widget_type = 'combo'
@@ -51,26 +48,35 @@ class BaseDeviceWidget(QWidget):
                 widget_type = 'text'
 
             boxes = {}
-            if arg_type in (str, int, float) or type(arg_type) == enum.EnumMeta:
-                options = input_specs.keys() if type(input_specs) == dict else value
-                boxes[name] = getattr(self, f'create_{widget_type}_box')(name, options)
-                setattr(self, f"{name}_widget", boxes[name])  # add attribute for widget input for easy access
+            if arg_type != dict or type(arg_type) == enum.EnumMeta:
+                boxes[name] = self.create_attribute_widget(name, widget_type, input_specs)
             elif arg_type == dict:
                 for k, v in input_specs.items():
                     label = QLabel(self.label_maker(k))
-                    options = v.keys() if type(v)==dict else v
-                    box = getattr(self, f'create_{widget_type}_box')(f"{name}.{k}", options)
-                    setattr(self, f"{name}.{k}_widget", box)  # add attribute for widget input for easy access
+                    box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
                     boxes[k] = self.create_widget('V', l=label, q=box)
             input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
 
             widgets[name] = self.create_widget(struct='H', **input_widgets)
             widgets[name].setToolTip(attr.__doc__)  # Set tooltip to properties docstring
 
-            if not getattr(attr, 'fset', False):  # Constant, unchangeable attribute
-                widgets[name].setDisabled(True)
+            # TODO: Maybe deal with disabling in specific class?
+            if not getattr(attr, 'fset', False) and type(self.device_object) != dict:  # Constant, unchangeable attribute
+                 widgets[name].setDisabled(True)
 
-        return widgets 
+        return widgets
+
+    def create_attribute_widget(self, name, widget_type, values):
+        """Create a widget and create coresponding attribute
+                :param name: name of property
+                :param widget_type: widget type (QLineEdit or QCombobox)
+                :param values: input into widget"""
+
+        options = values.keys() if type(values) == dict else values
+        box = getattr(self, f'create_{widget_type}_box')(name, options)
+        setattr(self, f"{name}_widget", box)  # add attribute for widget input for easy access
+
+        return box
 
     def check_driver_variables(self, name: str):
         """Check if there is variable in device driver that has name of
@@ -91,6 +97,7 @@ class BaseDeviceWidget(QWidget):
                 :param name: name to emit when text is edited is changed
                 :param value: initial value to add to box"""
 
+        # TODO: better way to handle weird types that will crash QT?
         value_type = type(value)
         textbox = QLineEdit(str(value))
         name_lst = name.split('.')
@@ -141,7 +148,6 @@ class BaseDeviceWidget(QWidget):
         """Set widget text if widget is QLineEdit or QCombobox
         :param name: widget name to set text to
         :param value: value of text"""
-
 
         widget = getattr(self, f'{name}_widget')
         widget.blockSignals(True)  # block signal indicating change since changing internally

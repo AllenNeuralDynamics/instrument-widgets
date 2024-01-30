@@ -53,7 +53,7 @@ if __name__ == "__main__":
     laser_properties = scan_for_properties(simulated_laser)
     base = BaseDeviceWidget(SimulatedLaser, "examples.resources.simulated_laser", laser_properties)
     base.ValueChangedInside[str].connect(widget_property_changed)
-
+    base.show()
     t1 = threading.Thread(target=device_change, args=())
     t1.start()
 

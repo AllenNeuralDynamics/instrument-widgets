@@ -1,0 +1,1 @@
+"""Widget for reading properties of python object"""

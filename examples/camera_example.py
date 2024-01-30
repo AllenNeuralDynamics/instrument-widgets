@@ -54,6 +54,7 @@ if __name__ == "__main__":
     print(camera_properties)
     base = BaseDeviceWidget(Camera, "examples.resources.simulated_camera", camera_properties)
     base.ValueChangedInside[str].connect(widget_property_changed)
+    base.show()
 
     t1 = threading.Thread(target=device_change, args=())
     t1.start()

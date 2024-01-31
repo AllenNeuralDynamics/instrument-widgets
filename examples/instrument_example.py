@@ -15,11 +15,6 @@ RESOURCES_DIR = (
 ACQUISITION_YAML = RESOURCES_DIR / 'test_acquisition.yaml'
 INSTRUMENT_YAML = RESOURCES_DIR / 'simulated_instrument.yaml'
 
-MODULE_MAPPING = {'laser': 'examples.resources.simulated_laser',
-                  'combiner': 'exa_spim_refactor.devices.lasers.simulated',
-                  'camera': 'exa_spim_refactor.devices.camera.simulated'}
-
-
 def scan_for_properties(device):
     """Scan for properties with setters and getters in class and return dictionary
     :param device: object to scan through for properties
@@ -39,7 +34,7 @@ def set_up_guis(devices, device_type):
     for name, device in devices.items():
         properties = scan_for_properties(device)
         # TODO: better way to find out what module
-        guis[name] = BaseDeviceWidget(type(device), MODULE_MAPPING[device_type], properties)
+        guis[name] = BaseDeviceWidget(type(device), properties)
         guis[name].setWindowTitle(f'{device_type} {name}')
         guis[name].ValueChangedInside[str].connect(
             lambda value, dev=device, widget=guis[name],: widget_property_changed(value, dev, widget))

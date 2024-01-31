@@ -41,7 +41,7 @@ if __name__ == "__main__":
     writer.color = "#00ff92"
     writer_properties = scan_for_properties(writer)
 
-    base = BaseDeviceWidget(Writer, "examples.resources.imaris", writer_properties)
+    base = BaseDeviceWidget(Writer, writer_properties)
     base.ValueChangedInside[str].connect(widget_property_changed)
     base.data_type = 'uint8'
 

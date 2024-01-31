@@ -22,7 +22,7 @@ def widget_property_changed(name):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     acquisition_properties = {k:'' for k in acquisition.Acquisition.model_fields.keys()}
-    base = BaseDeviceWidget(acquisition.Acquisition.model_fields, "aind_data_schema.core", acquisition_properties)
+    base = BaseDeviceWidget(acquisition.Acquisition.model_fields, acquisition_properties)
     base.ValueChangedInside[str].connect(widget_property_changed)
 
     # Format widgets better

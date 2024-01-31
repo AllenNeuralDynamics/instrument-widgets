@@ -1,6 +1,6 @@
 from qtpy.QtCore import Signal, Slot
 from qtpy.QtGui import QValidator, QIntValidator, QDoubleValidator
-from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QMainWindow
+from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QMainWindow, QSpinBox
 from inspect import signature, getfullargspec, currentframe, getfile
 import os
 import importlib
@@ -11,17 +11,16 @@ class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
     ValueChangedInside = Signal((str,))
 
-    def __init__(self, device_object, device_driver: str, properties: dict):
+    def __init__(self, device_object, properties: dict):
         """Base widget for devices like camera, laser, stage, ect. Widget will scan properties of
         device object and create editable inputs for each if not in device_widget class of device. If no device_widget
         class is provided, then all properties are exposed
         :param device_object: class or dictionary of device object
-        :param device_driver: string of driver of device
         :param properties: dictionary contain properties displayed in widget as keys and initial values as values"""
 
         super().__init__()
         self.device_object = device_object
-        self.device_driver = importlib.import_module(device_driver)
+        self.device_driver = importlib.import_module(self.device_object.__module__)
         self.property_widgets = self.create_property_widgets(properties)
 
         widget = self.create_widget('V', **self.property_widgets)

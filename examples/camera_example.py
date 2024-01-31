@@ -52,7 +52,7 @@ if __name__ == "__main__":
     simulated_camera = Camera('camera')
     camera_properties = scan_for_properties(simulated_camera)
     print(camera_properties)
-    base = BaseDeviceWidget(Camera, "examples.resources.simulated_camera", camera_properties)
+    base = BaseDeviceWidget(Camera, camera_properties)
     base.ValueChangedInside[str].connect(widget_property_changed)
     base.show()
 

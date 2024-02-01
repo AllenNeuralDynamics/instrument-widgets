@@ -13,7 +13,7 @@ class BaseDeviceWidget(QMainWindow):
 
     def __init__(self, device_object, properties: dict):
         """Base widget for devices like camera, laser, stage, ect. Widget will scan properties of
-        device object and create editable inputs for each if not in device_widget class of device. If no device_widget
+        device object and create editable inputs for each if not in device_widgets class of device. If no device_widgets
         class is provided, then all properties are exposed
         :param device_object: class or dictionary of device object
         :param properties: dictionary contain properties displayed in widget as keys and initial values as values"""

@@ -1,5 +1,5 @@
 from examples.resources.imaris import Writer
-from device_widget.base_device_widget import BaseDeviceWidget
+from device_widgets.base_device_widget import BaseDeviceWidget
 from qtpy.QtWidgets import QApplication
 import sys
 from qtpy.QtCore import Slot

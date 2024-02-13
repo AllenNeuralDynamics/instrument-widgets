@@ -6,6 +6,7 @@ import os
 import importlib
 import enum
 from pathlib import Path
+import types
 
 class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
@@ -20,7 +21,8 @@ class BaseDeviceWidget(QMainWindow):
 
         super().__init__()
         self.device_object = device_object
-        self.device_driver = importlib.import_module(self.device_object.__module__)
+        self.device_driver = importlib.import_module(self.device_object.__module__) if type(self.device_object) != dict \
+            else types.SimpleNamespace()    # dummy driver if object is dictionary
         self.property_widgets = self.create_property_widgets(properties)
 
         widget = self.create_widget('V', **self.property_widgets)

@@ -2,7 +2,7 @@ instrument:
   id: exaspim-01
   devices:
     cameras:
-      - name: vp-151mx
+      vp-151mx:
         driver: exa_spim_refactor.devices.camera.simulated
         module: Camera
         init:
@@ -17,7 +17,7 @@ instrument:
             mode: off
             source: external
             polarity: rising
-      - name: vnp-604mx
+      vnp-604mx:
         driver: exa_spim_refactor.devices.camera.simulated
         module: Camera
         init:
@@ -33,7 +33,7 @@ instrument:
             source: external
             polarity: rising
     tiling_stages:
-        - name: ASI MS-8000 x axis
+        ASI MS-8000 x axis:
           driver: exa_spim_refactor.devices.stage.simulated
           module: Stage
           init:
@@ -41,7 +41,7 @@ instrument:
             instrument_axis: x
           settings:
             speed_mm_s: 1.0
-        - name: ASI MS-8000 y axis
+        ASI MS-8000 y axis:
           driver: exa_spim_refactor.devices.stage.simulated
           module: Stage
           init:
@@ -49,7 +49,7 @@ instrument:
             instrument_axis: y
           settings:
             speed_mm_s: 1.0
-        - name: ASI MS-8000 z axis
+        ASI MS-8000 z axis:
           driver: exa_spim_refactor.devices.stage.simulated
           module: Stage
           init:
@@ -58,7 +58,7 @@ instrument:
           settings:
             speed_mm_s: 1.0
     scanning_stages:
-        - name: ASI LS-100 x axis
+        ASI LS-100 x axis:
           driver: exa_spim_refactor.devices.stage.simulated
           module: Stage
           init:
@@ -67,7 +67,7 @@ instrument:
           settings:
             speed_mm_s: 1.0
     filter_wheels:
-      - name: ASI FW-1000
+      ASI FW-1000:
         driver: exa_spim_refactor.devices.filterwheel.simulated
         module: FilterWheel
         init:
@@ -80,21 +80,21 @@ instrument:
             Empty1: 5
             Empty2: 6
     lasers:
-      - name: 638
+      638:
         driver: exa_spim_refactor.devices.lasers.simulated
         module: SimulatedLaser
         color: red
         init:
           port: COM5
     combiners:
-      - name: combiner_0
+      combiner_0:
         driver: exa_spim_refactor.devices.lasers.simulated
         module: SimulatedCombiner
         init:
           port: COM3
         subdevices:
           lasers:
-            - name: 405
+            405:
               driver: exa_spim_refactor.devices.lasers.simulated
               module: SimulatedLaser
               color: purple
@@ -107,14 +107,14 @@ instrument:
                 cdrh: OFF
                 constant_current: ON
                 modulation_mode: digital
-            - name: 561
+            561:
               driver: exa_spim_refactor.devices.lasers.simulated
               module: SimulatedLaser
               color: greenyellow
               init:
                 prefix: L3
     daqs:
-      - name: PCIe-6738
+      PCIe-6738:
         driver: exa_spim_refactor.devices.daq.ni
         module: DAQ
         init:
@@ -132,7 +132,7 @@ instrument:
                     rest_time_ms: 50
                     sampling_frequency_hz: 10000
                 ports:
-                    - port: ao0
+                    ao0:
                       name: tunable lens
                       device_min_volts: 0.0
                       device_max_volts: 5.0
@@ -168,7 +168,7 @@ instrument:
                                 "488": 200
                                 "561": 200
                                 "639": 200
-                    - port: ao1
+                    ao1:
                       name: stage
                       device_min_volts: 0.0
                       device_max_volts: 5.0
@@ -198,7 +198,7 @@ instrument:
                                 "488": 0.0
                                 "561": 0.0
                                 "639": 0.0
-                    - port: ao2
+                    ao2:
                       name: x galvo mirror
                       device_min_volts: 0.0
                       device_max_volts: 5.0
@@ -253,7 +253,7 @@ instrument:
                     rest_time_ms: 50
                     sampling_frequency_hz: 10000
                 ports:
-                    - port: PFI1
+                    port0:
                       name: laser
                       waveform: square wave
                       parameters:

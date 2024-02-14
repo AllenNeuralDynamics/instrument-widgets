@@ -8,6 +8,7 @@ import enum
 from pathlib import Path
 import types
 
+
 class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
     ValueChangedInside = Signal((str,))
@@ -22,10 +23,11 @@ class BaseDeviceWidget(QMainWindow):
         super().__init__()
         self.device_object = device_object
         self.device_driver = importlib.import_module(self.device_object.__module__) if type(self.device_object) != dict \
-            else types.SimpleNamespace()    # dummy driver if object is dictionary
+            else types.SimpleNamespace()  # dummy driver if object is dictionary
         self.property_widgets = self.create_property_widgets(properties)
 
         widget = self.create_widget('V', **self.property_widgets)
+        print(dir(self))
         self.setCentralWidget(widget)
         self.ValueChangedOutside[str].connect(self.update_property_widget)  # Trigger update when property value changes
 
@@ -36,10 +38,10 @@ class BaseDeviceWidget(QMainWindow):
         widgets = {}
         for name, value in properties.items():
             setattr(self, name, value)  # Add device properties as widget properties
-            input_widgets = {'label': QLabel(self.label_maker(name))}
-            attr = getattr(self.device_object, name, '') if type(self.device_object) != dict else self.device_object[name]    # If device class
-            arg_type = type(value)  # getfullargspec(getattr(attr, 'fset')).annotations
+            input_widgets = {'label': QLabel(self.label_maker(name.split('.')[-1]))}
+            arg_type = type(value)
             search_name = arg_type.__name__ if arg_type.__name__ in dir(self.device_driver) else name
+
             # Create combo boxes if there are preset options
             if input_specs := self.check_driver_variables(search_name):
                 widget_type = 'combo'
@@ -54,16 +56,22 @@ class BaseDeviceWidget(QMainWindow):
             elif arg_type == dict:
                 for k, v in input_specs.items():
                     label = QLabel(self.label_maker(k))
-                    box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
+                    if type(v) == dict and widget_type != 'combo':  # values are complex and should be another widget
+
+                        box = self.create_widget('V', **self.create_property_widgets({f'{name}.{k}.{kv}':vv for kv, vv in v.items()}))
+                    else:
+                        box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
                     boxes[k] = self.create_widget('V', l=label, q=box)
             input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
 
             widgets[name] = self.create_widget(struct='H', **input_widgets)
-            widgets[name].setToolTip(attr.__doc__)  # Set tooltip to properties docstring
 
-            # TODO: Maybe deal with disabling in specific class?
-            if not getattr(attr, 'fset', False) and type(self.device_object) != dict:  # Constant, unchangeable attribute
-                 widgets[name].setDisabled(True)
+            if attr := getattr(self.device_object, name, False):
+                widgets[name].setToolTip(attr.__doc__)  # Set tooltip to properties docstring
+
+                # TODO: Maybe deal with disabling in specific class?
+                if not getattr(attr, 'fset', False) and type(self.device_object) != dict:  # Constant, unchangeable attribute
+                     widgets[name].setDisabled(True)
 
         return widgets
 
@@ -73,7 +81,7 @@ class BaseDeviceWidget(QMainWindow):
                 :param widget_type: widget type (QLineEdit or QCombobox)
                 :param values: input into widget"""
 
-        options = values.keys() if type(values) == dict else values
+        options = values.keys() if widget_type == 'combo' else values
         box = getattr(self, f'create_{widget_type}_box')(name, options)
         setattr(self, f"{name}_widget", box)  # add attribute for widget input for easy access
 
@@ -105,7 +113,8 @@ class BaseDeviceWidget(QMainWindow):
         if len(name_lst) == 1:  # name refers to attribute
             textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
         else:  # name is a dictionary and key pair split by .
-            textbox.editingFinished.connect(lambda: getattr(self, name_lst[0]).__setitem__(name_lst[1], value_type(textbox.text())))
+            textbox.editingFinished.connect(
+                lambda: getattr(self, name_lst[0]).__setitem__(name_lst[1], value_type(textbox.text())))
 
         textbox.editingFinished.connect(lambda: self.ValueChangedInside.emit(name))
         arg_type = type(value)
@@ -138,12 +147,11 @@ class BaseDeviceWidget(QMainWindow):
         :param name: name of attribute and widget"""
 
         value = getattr(self, name)
-        if type(value) != dict:     # single widget to set value for
+        if type(value) != dict:  # single widget to set value for
             self._set_widget_text(name, value)
         else:
-            for k, v in value.items():      # multiple widgets to set values for
+            for k, v in value.items():  # multiple widgets to set values for
                 self._set_widget_text(f"{name}.{k}", v)
-
 
     def _set_widget_text(self, name, value):
         """Set widget text if widget is QLineEdit or QCombobox

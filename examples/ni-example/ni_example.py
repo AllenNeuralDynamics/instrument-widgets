@@ -1,4 +1,4 @@
-from exa_spim_refactor.devices.daq.ni import DAQ
+from voxel.devices.daq.ni import DAQ
 from device_widgets.ni_widget import NIWidget
 from qtpy.QtWidgets import QApplication
 import sys
@@ -35,10 +35,10 @@ if __name__ == "__main__":
     # set up daq
     config = YAML(typ='safe', pure=True).load(INSTRUMENT_YAML)
 
-    daq = config['instrument']['devices']['daqs']['PCIe-6738']['tasks']
-    ao_task = daq['ao_task']
-    do_task = daq['do_task']
-    co_task = daq['co_task']
+    daq_tasks = config['instrument']['devices']['daqs']['PCIe-6738']['tasks']
+    ao_task = daq_tasks['ao_task']
+    do_task = daq_tasks['do_task']
+    co_task = daq_tasks['co_task']
 
     daq_object = DAQ("Dev2")
     daq_object.add_task(ao_task, 'ao')
@@ -48,17 +48,11 @@ if __name__ == "__main__":
     daq_object.generate_waveforms(do_task, 'do', '488')
     daq_object.write_ao_waveforms()
     daq_object.write_do_waveforms()
-    # print(daq)
-    # for port in ao_task['ports']:
-    #     print(port)
-    # props = {k:'' for k in port.keys()}
-    # base = BaseDeviceWidget(port, port)
-    # base.show()
-    daq = NIWidget(daq_object, daq)
-    daq.show()
+    daq_tasks = NIWidget(daq_object, daq_tasks)
+    daq_tasks.show()
 
-    # daq.ValueChangedInside[str].connect(
-    #     lambda value, dev=daq_object, widget=daq,: widget_property_changed(value, dev, widget))
+    daq_tasks.ValueChangedInside[str].connect(
+        lambda value, dev=daq_object, widget=daq_tasks,: widget_property_changed(value, dev, widget))
 
     sys.exit(app.exec_())
 

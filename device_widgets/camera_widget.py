@@ -32,6 +32,7 @@ class CameraWidget(BaseDeviceWidget):
         self.add_live_button()
         self.add_snapshot_button()
 
+        print(self.__dict__)
 
     def add_live_button(self):
         """Add live button"""

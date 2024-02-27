@@ -7,7 +7,7 @@ import importlib
 import enum
 from pathlib import Path
 import types
-
+import ruamel.yaml
 
 class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
@@ -27,7 +27,6 @@ class BaseDeviceWidget(QMainWindow):
         self.property_widgets = self.create_property_widgets(properties)
 
         widget = self.create_widget('V', **self.property_widgets)
-        print(dir(self))
         self.setCentralWidget(widget)
         self.ValueChangedOutside[str].connect(self.update_property_widget)  # Trigger update when property value changes
 
@@ -51,27 +50,27 @@ class BaseDeviceWidget(QMainWindow):
                 widget_type = 'text'
 
             boxes = {}
-            if arg_type != dict or type(arg_type) == enum.EnumMeta:
+            if arg_type not in [dict, ruamel.yaml.comments.CommentedMap] or type(arg_type) == enum.EnumMeta:
                 boxes[name] = self.create_attribute_widget(name, widget_type, input_specs)
-            elif arg_type == dict:
+            elif arg_type in [dict, ruamel.yaml.comments.CommentedMap]:
                 for k, v in input_specs.items():
                     label = QLabel(self.label_maker(k))
-                    if type(v) == dict and widget_type != 'combo':  # values are complex and should be another widget
-
-                        box = self.create_widget('V', **self.create_property_widgets({f'{name}.{k}.{kv}':vv for kv, vv in v.items()}))
+                    if type(v) in [dict, ruamel.yaml.comments.CommentedMap] and widget_type != 'combo':  # values are complex and should be another widget
+                        box = self.create_widget('V', **self.create_property_widgets(
+                            {f'{name}.{k}.{kv}': vv for kv, vv in v.items()}))  # unique key for attribute
                     else:
+                        # create attribute
+                        setattr(self, f"{name}.{k}", getattr(self, name)[k])
                         box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
                     boxes[k] = self.create_widget('V', l=label, q=box)
             input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
 
             widgets[name] = self.create_widget(struct='H', **input_widgets)
 
-            if attr := getattr(self.device_object, name, False):
+            if attr := getattr(self.device_object, name, False):    # if name is attribute of device
                 widgets[name].setToolTip(attr.__doc__)  # Set tooltip to properties docstring
-
-                # TODO: Maybe deal with disabling in specific class?
-                if not getattr(attr, 'fset', False) and type(self.device_object) != dict:  # Constant, unchangeable attribute
-                     widgets[name].setDisabled(True)
+                if not getattr(attr, 'fset', False):  # Constant, unchangeable attribute
+                    widgets[name].setDisabled(True)
 
         return widgets
 
@@ -81,8 +80,8 @@ class BaseDeviceWidget(QMainWindow):
                 :param widget_type: widget type (QLineEdit or QCombobox)
                 :param values: input into widget"""
 
-        options = values.keys() if widget_type == 'combo' else values
-        box = getattr(self, f'create_{widget_type}_box')(name, options)
+        #options = values.keys() if widget_type == 'combo' else values
+        box = getattr(self, f'create_{widget_type}_box')(name, values)
         setattr(self, f"{name}_widget", box)  # add attribute for widget input for easy access
 
         return box
@@ -95,7 +94,7 @@ class BaseDeviceWidget(QMainWindow):
         driver_vars = self.device_driver.__dict__
         for variable in driver_vars:
             if name.lower() in variable.lower():  # TODO: plurals that contain ies?
-                if type(driver_vars[variable]) == dict:
+                if type(driver_vars[variable]) in [dict, list]:
                     return driver_vars[variable]
                 elif type(driver_vars[variable]) == enum.EnumMeta:  # if enum
                     enum_class = getattr(self.device_driver, name)
@@ -123,20 +122,22 @@ class BaseDeviceWidget(QMainWindow):
             textbox.setValidator(validator)
         return textbox
 
-    def create_combo_box(self, name, items: list):
+    def create_combo_box(self, name, items):
         """Convenience function to build combo boxes and add items
         :param name: name to emit when combobox index is changed
         :param items: items to add to combobox"""
 
+        options = items.keys() if type(items) in [dict, ruamel.yaml.comments.CommentedMap] else items
         box = QComboBox()
-        box.addItems(items)
+        box.addItems([str(x) for x in options])
         name_lst = name.split('.')
         if len(name_lst) == 1:  # name refers to attribute
             box.currentTextChanged.connect(lambda value: setattr(self, name, value))
-            box.setCurrentText(getattr(self, name))
+            box.setCurrentText(str(getattr(self, name)))
         else:  # name is a dictionary and key pair split by .
-            box.currentTextChanged.connect(lambda value: getattr(self, name_lst[0]).__setitem__(name_lst[1], value))
-            box.setCurrentText(getattr(self, name_lst[0]).__getitem__(name_lst[1]))
+            dictionary = self.pathGet(self.__dict__, name_lst[0:-1])
+            box.currentTextChanged.connect(lambda value: dictionary.__setitem__(name_lst[-1], value))
+            box.setCurrentText(dictionary.__getitem__(name_lst[-1]))
         # emit signal when changed so outside listener can update. needs to be after changing attribute
         box.currentTextChanged.connect(lambda: self.ValueChangedInside.emit(name))
         return box
@@ -147,7 +148,7 @@ class BaseDeviceWidget(QMainWindow):
         :param name: name of attribute and widget"""
 
         value = getattr(self, name)
-        if type(value) != dict:  # single widget to set value for
+        if type(value) not in [dict, ruamel.yaml.comments.CommentedMap]:  # single widget to set value for
             self._set_widget_text(name, value)
         else:
             for k, v in value.items():  # multiple widgets to set values for
@@ -212,3 +213,10 @@ class BaseDeviceWidget(QMainWindow):
         label = [words.capitalize() for words in label]
         label = " ".join(label)
         return label
+
+    def pathGet(self, dictionary: dict, path: list = None):
+        """Based on list of nested dictionary keys, return inner dictionary"""
+
+        for k in path:
+            dictionary = dictionary[k]
+        return dictionary

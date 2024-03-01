@@ -112,9 +112,9 @@ class BaseDeviceWidget(QMainWindow):
         if len(name_lst) == 1:  # name refers to attribute
             textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
         else:  # name is a dictionary and key pair split by .
+            dictionary = self.pathGet(self.__dict__, name_lst[0:-1])
             textbox.editingFinished.connect(
-                lambda: getattr(self, name_lst[0]).__setitem__(name_lst[1], value_type(textbox.text())))
-
+                lambda: dictionary.__setitem__(name_lst[-1], value))
         textbox.editingFinished.connect(lambda: self.ValueChangedInside.emit(name))
         arg_type = type(value)
         if arg_type in (float, int):

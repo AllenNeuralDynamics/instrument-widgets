@@ -103,9 +103,12 @@ class NIWidget(BaseDeviceWidget):
     def waveform_value_changed(self, name, value):
         """Update textbox if waveform is changed"""
         textbox = getattr(self, f'{name}_widget')
+        slider = getattr(self, f'{name}_slider')
         decimals = 0 if 'time' in name else 3
-        textbox.setText(str(round(value, decimals)))
-        textbox.editingFinished.emit()
+        value = round(value, 0) if 'time' in name else round(value, 3)
+        textbox.setText(str(value))
+        slider.setValue(value)
+        #textbox.editingFinished.emit()
 
     def remodel_timing_widgets(self, name, widget):
         """Remodel timing widget with driver options"""

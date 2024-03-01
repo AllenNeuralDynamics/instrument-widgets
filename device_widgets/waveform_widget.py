@@ -166,7 +166,7 @@ class DraggableGraphItem(GraphItem):
             self.pos[i][0] = x_pos
         self.start_time_ms = self.pos[1][0] / 10
         self.end_time_ms = self.pos[3][0] / 10
-        print(self.pos[3][0]/self.pos[4][0])
+
 
     def move_triangle_wave(self, ind, ev, y_list=[], x_list=[]):
         """Move triangle type waveform"""

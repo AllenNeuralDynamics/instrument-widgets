@@ -1,10 +1,7 @@
 from device_widgets.base_device_widget import BaseDeviceWidget
-from qtpy.QtGui import QValidator, QIntValidator, QDoubleValidator, QIcon, QColor
-from qtpy.QtWidgets import QPushButton, QStyle, QSlider, QLineEdit, QWidget, QLabel
 from qtpy.QtCore import Qt
-import sys
 import importlib
-
+from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
 
 def scan_for_properties(device):
     """Scan for properties with setters and getters in class and return dictionary
@@ -41,8 +38,7 @@ class LaserWidget(BaseDeviceWidget):
         textbox.validator().fixup = self.power_slider_fixup
         textbox.editingFinished.connect(lambda: slider.setValue(round(float(textbox.text()))))
 
-        slider = QSlider()
-        slider.setOrientation(Qt.Horizontal)
+        slider = QScrollableFloatSlider(orientation=Qt.Horizontal)
         slider.setStyleSheet("QSlider::groove:horizontal {border: 1px solid #777;height: 10px;border-radius: 4px;}"
                              "QSlider::handle:horizontal {background-color: grey; width: 16px; height: 20px; "
                              "line-height: 20px; margin-top: -5px; margin-bottom: -5px; border-radius: 10px; }"

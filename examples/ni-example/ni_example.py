@@ -8,7 +8,9 @@ from pathlib import Path
 import threading
 from time import sleep
 from ruamel.yaml import YAML
-from device_widgets.base_device_widget import BaseDeviceWidget
+from device_widgets.waveform_widget import WaveformWidget
+import numpy as np
+import pyqtgraph as pg
 
 INSTRUMENT_YAML = Path('C:\\Users\\micah.woodard\\Projects\\device-widgets\\examples\\'
                         'resources\\simulated_instrument.yaml')
@@ -50,7 +52,6 @@ if __name__ == "__main__":
     daq_object.write_do_waveforms()
     daq_tasks = NIWidget(daq_object, daq_tasks)
     daq_tasks.show()
-
     daq_tasks.ValueChangedInside[str].connect(
         lambda value, dev=daq_object, widget=daq_tasks,: widget_property_changed(value, dev, widget))
 

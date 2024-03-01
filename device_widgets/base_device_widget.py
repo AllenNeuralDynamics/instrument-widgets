@@ -54,13 +54,13 @@ class BaseDeviceWidget(QMainWindow):
                 boxes[name] = self.create_attribute_widget(name, widget_type, input_specs)
             elif arg_type in [dict, ruamel.yaml.comments.CommentedMap]:
                 for k, v in input_specs.items():
+                    # create attribute
+                    setattr(self, f"{name}.{k}", getattr(self, name)[k])
                     label = QLabel(self.label_maker(k))
                     if type(v) in [dict, ruamel.yaml.comments.CommentedMap] and widget_type != 'combo':  # values are complex and should be another widget
                         box = self.create_widget('V', **self.create_property_widgets(
                             {f'{name}.{k}.{kv}': vv for kv, vv in v.items()}))  # unique key for attribute
                     else:
-                        # create attribute
-                        setattr(self, f"{name}.{k}", getattr(self, name)[k])
                         box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
                     boxes[k] = self.create_widget('V', l=label, q=box)
             input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}

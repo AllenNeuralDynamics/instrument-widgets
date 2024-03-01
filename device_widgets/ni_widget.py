@@ -66,33 +66,37 @@ class NIWidget(BaseDeviceWidget):
                 kwargs['min_volts'] = getattr(self, f'{port_name}.parameters.min_volts.channels.{wl}', 0)
                 voltages = square_wave(**kwargs)
                 maximum_points = np.where(voltages == (kwargs['max_volts']))[0]
-                y = [kwargs['min_volts'], kwargs['min_volts'], voltages[maximum_points[0]], voltages[maximum_points[-1]],
+                y = [kwargs['min_volts'], kwargs['min_volts'], voltages[maximum_points[0]],
+                     voltages[maximum_points[-1]],
                      kwargs['min_volts'], kwargs['min_volts']]
-                x = [0, maximum_points[0] - 1, maximum_points[0], maximum_points[-1], maximum_points[-1] + 1, len(voltages)]
+                x = [0, maximum_points[0] - 1, maximum_points[0], maximum_points[-1], maximum_points[-1] + 1,
+                     len(voltages)]
             else:
                 kwargs['amplitude_volts'] = getattr(self, f'{port_name}.parameters.amplitude_volts.channels.{wl}')
                 kwargs['offset_volts'] = getattr(self, f'{port_name}.parameters.offset_volts.channels.{wl}')
-                kwargs['cutoff_frequency_hz'] = getattr(self, f'{port_name}.parameters.cutoff_frequency_hz.channels.{wl}')
+                kwargs['cutoff_frequency_hz'] = getattr(self,
+                                                        f'{port_name}.parameters.cutoff_frequency_hz.channels.{wl}')
                 if waveform == 'sawtooth':
                     voltages = sawtooth(**kwargs)
                 else:
                     voltages = triangle_wave(**kwargs)
 
                 max_point = np.argmax(voltages)
-                min_value = kwargs['offset_volts']-kwargs['amplitude_volts']
+                min_value = kwargs['offset_volts'] - kwargs['amplitude_volts']
                 pre_rise_point = np.where(voltages[:max_point] == min_value)[0][-1]
                 post_rise_point = np.where(voltages[max_point:] == min_value)[0][0] + max_point
-                y = [voltages[0], voltages[pre_rise_point], voltages[max_point], voltages[post_rise_point], voltages[-1]]
+                y = [voltages[0], voltages[pre_rise_point], voltages[max_point], voltages[post_rise_point],
+                     voltages[-1]]
                 x = [0, pre_rise_point, max_point, post_rise_point, len(voltages)]
                 # y = voltages
                 # x = np.linspace(0, len(voltages), len(voltages))
 
             item = self.waveform_widget.plot(pos=np.column_stack((x, y)),
                                              waveform=waveform,
-                                             parameters= getattr(self, f'{port_name}.parameters').keys()
-                                             )
+                                             parameters={k: v['channels'][wl] for k, v in
+                                                         getattr(self, f'{port_name}.parameters').items()})
             item.valueChanged[str, float].connect(lambda var, val: self.waveform_value_changed(
-                f'{port_name}.parameters.{var}.channels.{wl}',val))
+                f'{port_name}.parameters.{var}.channels.{wl}', val))
             setattr(self, f'{port_name}.{wl}_plot_item', item)
 
     @Slot(str, float)

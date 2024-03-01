@@ -13,6 +13,8 @@ class SignalChangeVar:
         setattr(instance, self.name, value)  # initially setting attr
         instance.valueChanged.emit(self.name[1:], value)
 
+    def __get__(self, instance, value):
+        return getattr(instance, self.name)
 
 class WaveformWidget(PlotWidget):
 
@@ -71,8 +73,8 @@ class DraggableGraphItem(GraphItem):
                 raise Exception(f"Waveform {waveform} must have 6 points in data set. "
                                 f"Waveform has {self.data['pos'].shape[0]}")
 
-        for k in self.data['parameters']:
-            setattr(self, k, 0.0)
+        for k,v in self.data['parameters'].items():
+            setattr(self, k, v)
 
     def mouseDragEvent(self, ev):
 
@@ -94,12 +96,13 @@ class DraggableGraphItem(GraphItem):
             if self.dragPoint is None:
                 ev.ignore()
                 return
-
         ind = self.dragPoint.data()[0]
         if self.waveform == 'square wave':
             self.move_square_wave(ind, ev)
         elif self.waveform == 'sawtooth':
             self.move_sawtooth(ind, ev)
+        elif self.waveform == 'triangle wave':
+            self.move_triangle_wave(ind, ev)
 
         super().setData(**self.data)
         ev.accept()
@@ -108,20 +111,18 @@ class DraggableGraphItem(GraphItem):
         """Move square wave type waveform"""
         # square wave will have 6 indices
         y_pos = ev.pos()[1] + self.dragOffsetY
-        x_pos = ev.pos()[0] + self.dragOffsetX
-
-        if ind in [1, 4] and y_pos <= self.pos[2][1] and y_pos >= 0:
+        if ind in [1, 4] and 0 <= y_pos <= self.pos[2][1]:
             y_list = [0, 1, 4, 5] if 'min_volts' in self.data['parameters'] else []
         elif ind in [2,3] and y_pos >= self.pos[1][1]:
             y_list = [2,3] if 'max_volts' in self.data['parameters'] else []
+        for i in y_list:
+            self.pos[i][1] = y_pos
 
+        x_pos = ev.pos()[0] + self.dragOffsetX
         lower_limit_x = self.pos[ind - 1][0] if ind in [1,3] else self.pos[ind - 2][0]
         upper_limit_x = self.pos[ind + 2][0] if ind in [1,3] else self.pos[ind + 1][0]
-        if x_pos <= upper_limit_x and x_pos >= lower_limit_x and ind in [1,2,3,4]:
+        if lower_limit_x <= x_pos <= upper_limit_x and ind in [1,2,3,4]:
             x_list = [ind + 1, ind] if ind in [1,3] else [ind - 1, ind]
-
-        for i in y_list:
-            self.pos[i][1] = ev.pos()[1] + self.dragOffsetY
         for i in x_list:
             self.pos[i][0] = ev.pos()[0] + self.dragOffsetX
 
@@ -133,13 +134,66 @@ class DraggableGraphItem(GraphItem):
         if 'max_volts' in self.data['parameters']:
             self.max_volts = self.pos[2][1]
 
-    def move_sawtooth(self, ind, ev):
+    def move_sawtooth(self, ind, ev, y_list=[], x_list=[]):
         """Move sawtooth type waveform"""
         # sawtooth will have 5 indices
-        if ind == 1 or ind == 3:
-            for i in [0, 1, 3, 4]:
-                self.pos[i][1] = ev.pos()[1] + self.dragOffsetY
-                self.pos[ind][0] = ev.pos()[0] + self.dragOffsetX
-        elif ind == 2:
-            self.pos[ind][1] = ev.pos()[1] + self.dragOffsetY
-            self.pos[ind][0] = ev.pos()[0] + self.dragOffsetX
+        y_pos = ev.pos()[1] + self.dragOffsetY
+        if ind in [1, 3] and y_pos <= self.pos[2][1] and y_pos >= 0:
+            y_list = [0, 1, 3, 4]
+            self.offset_volts = (self.pos[2][1] + y_pos) / 2
+            self.amplitude_volts = self.offset_volts - y_pos
+        elif ind == 2 and y_pos >= self.pos[3][1]:
+            y_list = [2]
+            self.offset_volts = (self.pos[3][1] + y_pos) / 2
+            self.amplitude_volts = y_pos - self.offset_volts
+        for i in y_list:
+            self.pos[i][1] = ev.pos()[1] + self.dragOffsetY
+
+        x_pos = ev.pos()[0] + self.dragOffsetX
+        start_offset = x_pos - (self.pos[2][0]-self.pos[1][0])
+        end_offset = x_pos + (self.pos[3][0]-self.pos[2][0])
+        if ind in [1, 3] and self.pos[ind - 1][0] <= x_pos <= self.pos[ind + 1][0]:
+            # triangle wave apex centered between start and end time
+            x_list = [ind]
+            self.pos[2][0] = self.pos[1][0]+(x_pos/self.pos[4][0])*(x_pos-self.pos[1][0]) if ind == 3 \
+                else x_pos+(self.pos[3][0]/self.pos[4][0])*(self.pos[3][0]-x_pos)
+
+        elif ind == 2 and self.pos[0][0] <= start_offset and end_offset <= self.pos[4][0]:
+            x_list = [2]
+            self.pos[1][0] = start_offset
+            self.pos[3][0] = end_offset
+        for i in x_list:
+            self.pos[i][0] = x_pos
+        self.start_time_ms = self.pos[1][0] / 10
+        self.end_time_ms = self.pos[3][0] / 10
+        print(self.pos[3][0]/self.pos[4][0])
+
+    def move_triangle_wave(self, ind, ev, y_list=[], x_list=[]):
+        """Move triangle type waveform"""
+        # triangle will have 5 indices
+        y_pos = ev.pos()[1] + self.dragOffsetY
+        if ind in [1, 3] and y_pos <= self.pos[2][1] and y_pos >= 0:
+            y_list = [0, 1, 3, 4]
+            self.offset_volts = (self.pos[2][1] + y_pos)/2
+            self.amplitude_volts = self.offset_volts-y_pos
+        elif ind == 2 and y_pos >= self.pos[3][1]:
+            y_list = [2]
+            self.offset_volts = (self.pos[3][1] + y_pos) / 2
+            self.amplitude_volts = y_pos - self.offset_volts
+        for i in y_list:
+            self.pos[i][1] = ev.pos()[1] + self.dragOffsetY
+
+        x_pos = ev.pos()[0] + self.dragOffsetX
+        offset = x_pos - self.pos[2][0]
+        if ind in [1, 3] and self.pos[ind - 1][0] <= x_pos <= self.pos[ind + 1][0]:
+            # triangle wave apex centered between start and end time
+            x_list = [ind]
+            self.pos[2][0] = x_pos-(x_pos-self.pos[1][0])/2 if ind == 3 else x_pos+((self.pos[3][0]-x_pos)/2)
+        elif ind == 2 and self.pos[0][0] <= self.pos[1][0]+offset and self.pos[3][0] + offset <= self.pos[4][0]:
+            x_list = [2]
+            self.pos[1][0] = self.pos[1][0]+offset
+            self.pos[3][0] = self.pos[3][0] + offset
+        for i in x_list:
+            self.pos[i][0] = x_pos
+        self.start_time_ms = self.pos[1][0] / 10
+        self.end_time_ms = self.pos[3][0] / 10

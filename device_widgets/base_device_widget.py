@@ -8,6 +8,7 @@ import enum
 from pathlib import Path
 import types
 import ruamel.yaml
+import re
 
 class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
@@ -93,7 +94,8 @@ class BaseDeviceWidget(QMainWindow):
 
         driver_vars = self.device_driver.__dict__
         for variable in driver_vars:
-            if name.lower() in variable.lower():  # TODO: plurals that contain ies?
+            x = re.match(fr'\b{name.lower()}s?\b', variable.lower())
+            if x is not None:  # TODO: plurals that contain ies?
                 if type(driver_vars[variable]) in [dict, list]:
                     return driver_vars[variable]
                 elif type(driver_vars[variable]) == enum.EnumMeta:  # if enum

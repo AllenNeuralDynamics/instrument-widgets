@@ -141,31 +141,31 @@ class DraggableGraphItem(GraphItem):
         if ind in [1, 3] and y_pos <= self.pos[2][1] and y_pos >= 0:
             y_list = [0, 1, 3, 4]
             self.offset_volts = (self.pos[2][1] + y_pos) / 2
-            self.amplitude_volts = self.offset_volts - y_pos
+            self.pos[2][1] = y_pos + (self.pos[2][1]-self.pos[3][1])
+
         elif ind == 2 and y_pos >= self.pos[3][1]:
             y_list = [2]
-            self.offset_volts = (self.pos[3][1] + y_pos) / 2
-            self.amplitude_volts = y_pos - self.offset_volts
+            self.amplitude_volts = y_pos-self.offset_volts
+            self.pos[3][1] = self.offset_volts - self.amplitude_volts
+            self.pos[1][1] = self.offset_volts - self.amplitude_volts
+            self.pos[0][1] = self.offset_volts - self.amplitude_volts
+            self.pos[4][1] = self.offset_volts - self.amplitude_volts
         for i in y_list:
             self.pos[i][1] = ev.pos()[1] + self.dragOffsetY
 
         x_pos = ev.pos()[0] + self.dragOffsetX
-        start_offset = x_pos - (self.pos[2][0]-self.pos[1][0])
-        end_offset = x_pos + (self.pos[3][0]-self.pos[2][0])
-        if ind in [1, 3] and self.pos[ind - 1][0] <= x_pos <= self.pos[ind + 1][0]:
-            # triangle wave apex centered between start and end time
+        if ind in [1] and self.pos[ind - 1][0] <= x_pos <= self.pos[ind + 1][0]:
             x_list = [ind]
-            self.pos[2][0] = self.pos[1][0]+(x_pos/self.pos[4][0])*(x_pos-self.pos[1][0]) if ind == 3 \
-                else x_pos+(self.pos[3][0]/self.pos[4][0])*(self.pos[3][0]-x_pos)
+            self.start_time_ms = x_pos / 10
+            self.pos[2][0] = x_pos+(self.end_time_ms/self.period_time_ms)*(self.pos[3][0]-x_pos)
 
-        elif ind == 2 and self.pos[0][0] <= start_offset and end_offset <= self.pos[4][0]:
+        elif ind == 2 and self.pos[1][0] <= x_pos <= self.pos[3][0]:
             x_list = [2]
-            self.pos[1][0] = start_offset
-            self.pos[3][0] = end_offset
+            self.end_time_ms = (x_pos/((self.pos[3][0]-self.pos[1][0])*(self.start_time_ms)))*(self.period_time_ms*10)
         for i in x_list:
             self.pos[i][0] = x_pos
-        self.start_time_ms = self.pos[1][0] / 10
-        self.end_time_ms = self.pos[3][0] / 10
+        # self.start_time_ms = self.pos[1][0] / 10
+        # self.end_time_ms = self.pos[3][0] / 10
 
 
     def move_triangle_wave(self, ind, ev, y_list=[], x_list=[]):

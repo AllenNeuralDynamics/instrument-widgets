@@ -51,64 +51,67 @@ class NIWidget(BaseDeviceWidget):
         task_type = name_lst[0]
         port_name = '.'.join(name_lst[:name_lst.index("ports") + 2])
         wl = name_lst[-1]
-        if not getattr(self, f'{port_name}.{wl}_plot_item', False):
-            waveform = getattr(self, f'{port_name}.waveform')
-            kwargs = {
-                'sampling_frequency_hz': getattr(self, f'{task_type}.timing.sampling_frequency_hz'),
-                'period_time_ms': getattr(self, f'{task_type}.timing.period_time_ms'),
-                'start_time_ms': getattr(self, f'{port_name}.parameters.start_time_ms.channels.{wl}'),
-                'end_time_ms': getattr(self, f'{port_name}.parameters.end_time_ms.channels.{wl}'),
-                'rest_time_ms': getattr(self, f'{task_type}.timing.rest_time_ms')
-            }
 
-            if waveform == 'square wave':
-                kwargs['max_volts'] = getattr(self, f'{port_name}.parameters.max_volts.channels.{wl}', 5)
-                kwargs['min_volts'] = getattr(self, f'{port_name}.parameters.min_volts.channels.{wl}', 0)
-                voltages = square_wave(**kwargs)
-                maximum_points = np.where(voltages == (kwargs['max_volts']))[0]
-                y = [kwargs['min_volts'], kwargs['min_volts'], voltages[maximum_points[0]],
-                     voltages[maximum_points[-1]],
-                     kwargs['min_volts'], kwargs['min_volts']]
-                x = [0, maximum_points[0] - 1, maximum_points[0], maximum_points[-1], maximum_points[-1] + 1,
-                     len(voltages)]
+        waveform = getattr(self, f'{port_name}.waveform')
+        kwargs = {
+            'sampling_frequency_hz': getattr(self, f'{task_type}.timing.sampling_frequency_hz'),
+            'period_time_ms': getattr(self, f'{task_type}.timing.period_time_ms'),
+            'start_time_ms': getattr(self, f'{port_name}.parameters.start_time_ms.channels.{wl}'),
+            'end_time_ms': getattr(self, f'{port_name}.parameters.end_time_ms.channels.{wl}'),
+            'rest_time_ms': getattr(self, f'{task_type}.timing.rest_time_ms')
+        }
+
+        if waveform == 'square wave':
+            kwargs['max_volts'] = getattr(self, f'{port_name}.parameters.max_volts.channels.{wl}', 5)
+            kwargs['min_volts'] = getattr(self, f'{port_name}.parameters.min_volts.channels.{wl}', 0)
+            voltages = square_wave(**kwargs)
+            maximum_points = np.where(voltages == (kwargs['max_volts']))[0]
+            y = [kwargs['min_volts'], kwargs['min_volts'], voltages[maximum_points[0]],
+                 voltages[maximum_points[-1]],
+                 kwargs['min_volts'], kwargs['min_volts']]
+            x = [0, maximum_points[0] - 1, maximum_points[0], maximum_points[-1], maximum_points[-1] + 1,
+                 len(voltages)]
+        else:
+            kwargs['amplitude_volts'] = getattr(self, f'{port_name}.parameters.amplitude_volts.channels.{wl}')
+            kwargs['offset_volts'] = getattr(self, f'{port_name}.parameters.offset_volts.channels.{wl}')
+            kwargs['cutoff_frequency_hz'] = getattr(self,
+                                                    f'{port_name}.parameters.cutoff_frequency_hz.channels.{wl}')
+            if waveform == 'sawtooth':
+                voltages = sawtooth(**kwargs)
             else:
-                kwargs['amplitude_volts'] = getattr(self, f'{port_name}.parameters.amplitude_volts.channels.{wl}')
-                kwargs['offset_volts'] = getattr(self, f'{port_name}.parameters.offset_volts.channels.{wl}')
-                kwargs['cutoff_frequency_hz'] = getattr(self,
-                                                        f'{port_name}.parameters.cutoff_frequency_hz.channels.{wl}')
-                if waveform == 'sawtooth':
-                    voltages = sawtooth(**kwargs)
-                else:
-                    voltages = triangle_wave(**kwargs)
+                voltages = triangle_wave(**kwargs)
 
-                max_point = np.argmax(voltages)
-                min_value = kwargs['offset_volts'] - kwargs['amplitude_volts']
-                pre_rise_point = np.where(voltages[:max_point] == min_value)[0][-1]
-                post_rise_point = np.where(voltages[max_point:] == min_value)[0][0] + max_point
-                y = [voltages[0], voltages[pre_rise_point], voltages[max_point], voltages[post_rise_point],
-                     voltages[-1]]
-                x = [0, pre_rise_point, max_point, post_rise_point, len(voltages)]
-                # y = voltages
-                # x = np.linspace(0, len(voltages), len(voltages))
+            max_point = np.argmax(voltages)
+            min_value = kwargs['offset_volts'] - kwargs['amplitude_volts']
+            pre_rise_point = np.where(voltages[:max_point] == min_value)[0][-1]
+            post_rise_point = np.where(voltages[max_point:] == min_value)[0][0] + max_point
+            y = [voltages[0], voltages[pre_rise_point], voltages[max_point], voltages[post_rise_point],
+                 voltages[-1]]
+            x = [0, pre_rise_point, max_point, post_rise_point, len(voltages)]
 
-            item = self.waveform_widget.plot(pos=np.column_stack((x, y)),
-                                             waveform=waveform,
-                                             parameters={k: v['channels'][wl] for k, v in
-                                                         getattr(self, f'{port_name}.parameters').items()})
-            item.valueChanged[str, float].connect(lambda var, val: self.waveform_value_changed(
-                f'{port_name}.parameters.{var}.channels.{wl}', val))
-            setattr(self, f'{port_name}.{wl}_plot_item', item)
+        if item := getattr(self, f'{port_name}.{wl}_plot_item', False):
+            self.waveform_widget.removeItem(item)
+
+        item = self.waveform_widget.plot(pos=np.column_stack((x, y)),
+                                         waveform=waveform,
+                                         parameters={**{k: v['channels'][wl] for k, v in
+                                                     getattr(self, f'{port_name}.parameters').items()}, **kwargs})
+        item.valueChanged[str, float].connect(lambda var, val: self.waveform_value_changed(
+            f'{port_name}.parameters.{var}.channels.{wl}', val))
+        setattr(self, f'{port_name}.{wl}_plot_item', item)
 
     @Slot(str, float)
     def waveform_value_changed(self, name, value):
         """Update textbox if waveform is changed"""
+        name_lst = name.split('.')
         textbox = getattr(self, f'{name}_widget')
         slider = getattr(self, f'{name}_slider')
-        decimals = 0 if 'time' in name else 3
         value = round(value, 0) if 'time' in name else round(value, 3)
         textbox.setText(str(value))
         slider.setValue(value)
-        #textbox.editingFinished.emit()
+        dictionary = self.pathGet(self.__dict__, name_lst[0:-1])
+        dictionary.__setitem__(name_lst[-1], value)
+        self.ValueChangedInside.emit(name)
 
     def remodel_timing_widgets(self, name, widget):
         """Remodel timing widget with driver options"""

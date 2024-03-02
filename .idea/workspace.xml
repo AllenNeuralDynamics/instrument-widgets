@@ -1,21 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="5a7210ab-29bc-49f4-8a36-fb0b4d725ebc" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/device_widget/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/resources/imaris.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/resources/simulated_instrument.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/resources/test_acquisition.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/schema_example.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/writer_example.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/device_widget/base_device_widget.py" beforeDir="false" afterPath="$PROJECT_DIR$/device_widget/base_device_widget.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/camera_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/camera_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/instrument_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/instrument_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/laser_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/laser_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/resources/simulated_filter_wheel.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/resources/simulated_stage.py" beforeDir="false" />
-    </list>
+    <list default="true" id="5a7210ab-29bc-49f4-8a36-fb0b4d725ebc" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -27,6 +13,9 @@
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
   </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 2
+}]]></component>
   <component name="ProjectId" id="2bgZGf3LewnR67t4mqUBrBj3fn5" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -36,7 +25,8 @@
   "keyToString": {
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "last_opened_file_path": "C:/Users/micah.woodard/Projects/device-widget"
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/micah.woodard/Projects/device-widgets"
   }
 }]]></component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />

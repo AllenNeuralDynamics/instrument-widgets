@@ -1,5 +1,5 @@
 from device_widgets.base_device_widget import BaseDeviceWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QPushButton
 from qtpy.QtCore import Qt
 from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
 from device_widgets.waveform_widget import WaveformWidget

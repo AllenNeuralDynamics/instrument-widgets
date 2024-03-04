@@ -13,7 +13,6 @@ class NIWidget(BaseDeviceWidget):
     def __init__(self, daq, tasks):
         """Modify BaseDeviceWidget to be specifically for ni daq.
         :param tasks: tasks for daq"""
-
         # initialize base widget to create convenient widgets and signals
         super().__init__(daq, tasks)
         # available channels    #TODO: this seems pretty hard coded?  A way to avoid this?
@@ -48,17 +47,17 @@ class NIWidget(BaseDeviceWidget):
         """Add waveforms to waveform widget"""
 
         name_lst = name.split('.')
-        task_type = name_lst[0]
+        task = '.'.join(name_lst[:name_lst.index("ports")])
         port_name = '.'.join(name_lst[:name_lst.index("ports") + 2])
         wl = name_lst[-1]
 
         waveform = getattr(self, f'{port_name}.waveform')
         kwargs = {
-            'sampling_frequency_hz': getattr(self, f'{task_type}.timing.sampling_frequency_hz'),
-            'period_time_ms': getattr(self, f'{task_type}.timing.period_time_ms'),
+            'sampling_frequency_hz': getattr(self, f'{task}.timing.sampling_frequency_hz'),
+            'period_time_ms': getattr(self, f'{task}.timing.period_time_ms'),
             'start_time_ms': getattr(self, f'{port_name}.parameters.start_time_ms.channels.{wl}'),
             'end_time_ms': getattr(self, f'{port_name}.parameters.end_time_ms.channels.{wl}'),
-            'rest_time_ms': getattr(self, f'{task_type}.timing.rest_time_ms')
+            'rest_time_ms': getattr(self, f'{task}.timing.rest_time_ms')
         }
 
         if waveform == 'square wave':
@@ -127,7 +126,7 @@ class NIWidget(BaseDeviceWidget):
     def remodel_port_widgets(self, name, widget):
         """Remodel port widgets with possible ports and waveforms"""
         path = name.split('.')
-        task = path[0][:2]
+        task = 'ao' if 'ao_task' in path else 'do'
 
         if path[-1] == 'port':
             options = getattr(self, f'{task}_physical_chans')
@@ -145,14 +144,16 @@ class NIWidget(BaseDeviceWidget):
 
         textbox = getattr(self, f'{name}_widget')
         slider = QScrollableFloatSlider(orientation=Qt.Horizontal)
+        path = name.split('.')
         if 'time' in name:
-            maximum = getattr(self, 'ao_task.timing.period_time_ms')
+            task = '.'.join(path[:path.index("ports")])
+            maximum = getattr(self, f'{task}.timing.period_time_ms')
             slider.setMaximum(maximum)
             textbox.validator().setRange(0.0, maximum, decimals=0)
         elif 'volt' in name:
-            path = name.split('.')
             slider.divisor = 1000
-            maximum = getattr(self, f'{".".join(path[0:3])}.device_max_volts')
+            port = '.'.join(path[:path.index("ports")+2])
+            maximum = getattr(self, f'{port}.device_max_volts')
             slider.setMaximum(maximum)
             textbox.validator().setRange(0.0, maximum, decimals=3)
 

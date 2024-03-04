@@ -216,7 +216,7 @@ class BaseDeviceWidget(QMainWindow):
         label = " ".join(label)
         return label
 
-    def pathGet(self, dictionary: dict, path: list = None):
+    def pathGet(self, dictionary: dict, path: list):
         """Based on list of nested dictionary keys, return inner dictionary"""
 
         for k in path:

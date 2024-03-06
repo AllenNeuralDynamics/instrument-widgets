@@ -57,19 +57,18 @@ class NIWidget(BaseDeviceWidget):
             'period_time_ms': getattr(self, f'{task}.timing.period_time_ms'),
             'start_time_ms': getattr(self, f'{port_name}.parameters.start_time_ms.channels.{wl}'),
             'end_time_ms': getattr(self, f'{port_name}.parameters.end_time_ms.channels.{wl}'),
-            'rest_time_ms': getattr(self, f'{task}.timing.rest_time_ms')
+            'rest_time_ms': getattr(self, f'{task}.timing.rest_time_ms'),
         }
 
         if waveform == 'square wave':
             kwargs['max_volts'] = getattr(self, f'{port_name}.parameters.max_volts.channels.{wl}', 5)
             kwargs['min_volts'] = getattr(self, f'{port_name}.parameters.min_volts.channels.{wl}', 0)
             voltages = square_wave(**kwargs)
-            maximum_points = np.where(voltages == (kwargs['max_volts']))[0]
-            y = [kwargs['min_volts'], kwargs['min_volts'], voltages[maximum_points[0]],
-                 voltages[maximum_points[-1]],
-                 kwargs['min_volts'], kwargs['min_volts']]
-            x = [0, maximum_points[0] - 1, maximum_points[0], maximum_points[-1], maximum_points[-1] + 1,
-                 len(voltages)]
+            start = int(kwargs['start_time_ms'] * 10)
+            end = int(kwargs['period_time_ms'] * 10)
+            y = [kwargs['min_volts'], kwargs['min_volts'], kwargs['max_volts'],
+                 kwargs['max_volts'], kwargs['min_volts'], kwargs['min_volts']]
+            x = [0, start - 1, start, end, end + 1, len(voltages)]
         else:
             kwargs['amplitude_volts'] = getattr(self, f'{port_name}.parameters.amplitude_volts.channels.{wl}')
             kwargs['offset_volts'] = getattr(self, f'{port_name}.parameters.offset_volts.channels.{wl}')
@@ -77,31 +76,40 @@ class NIWidget(BaseDeviceWidget):
                                                     f'{port_name}.parameters.cutoff_frequency_hz.channels.{wl}')
             if waveform == 'sawtooth':
                 voltages = sawtooth(**kwargs)
+                max_point = int(kwargs['end_time_ms'] * 10)
             else:
                 voltages = triangle_wave(**kwargs)
+                max_point = round(
+                    (kwargs['start_time_ms'] + ((kwargs['period_time_ms'] - kwargs['start_time_ms']) / 2)) * 10)
 
-            max_point = np.argmax(voltages)
-            min_value = kwargs['offset_volts'] - kwargs['amplitude_volts']
-            pre_rise_point = np.where(voltages[:max_point] == min_value)[0][-1]
-            post_rise_point = np.where(voltages[max_point:] == min_value)[0][0] + max_point
+            pre_rise_point = int(kwargs['start_time_ms'] * 10)
+            post_rise_point = int(kwargs['period_time_ms'] * 10)
             y = [voltages[0], voltages[pre_rise_point], voltages[max_point], voltages[post_rise_point],
                  voltages[-1]]
             x = [0, pre_rise_point, max_point, post_rise_point, len(voltages)]
 
+        if 'do_task' not in name:
+            # Add min and max for graph
+            kwargs['device_max_volts'] = getattr(self, f'{port_name}.device_max_volts')
+            kwargs['device_min_volts'] = getattr(self, f'{port_name}.device_min_volts')
+
         if item := getattr(self, f'{port_name}.{wl}_plot_item', False):
             self.waveform_widget.removeItem(item)
+
 
         item = self.waveform_widget.plot(pos=np.column_stack((x, y)),
                                          waveform=waveform,
                                          parameters={**{k: v['channels'][wl] for k, v in
-                                                     getattr(self, f'{port_name}.parameters').items()}, **kwargs})
+                                                        getattr(self, f'{port_name}.parameters').items()}, **kwargs})
+        self.waveform_widget.setYRange(0, 5)
         item.valueChanged[str, float].connect(lambda var, val: self.waveform_value_changed(
-            f'{port_name}.parameters.{var}.channels.{wl}', val))
+            val, f'{port_name}.parameters.{var}.channels.{wl}'))
         setattr(self, f'{port_name}.{wl}_plot_item', item)
 
     @Slot(str, float)
-    def waveform_value_changed(self, name, value):
+    def waveform_value_changed(self, value, name):
         """Update textbox if waveform is changed"""
+
         name_lst = name.split('.')
         textbox = getattr(self, f'{name}_widget')
         slider = getattr(self, f'{name}_slider')
@@ -110,6 +118,7 @@ class NIWidget(BaseDeviceWidget):
         slider.setValue(value)
         dictionary = self.pathGet(self.__dict__, name_lst[0:-1])
         dictionary.__setitem__(name_lst[-1], value)
+        setattr(self, name, value)
         self.ValueChangedInside.emit(name)
 
     def remodel_timing_widgets(self, name, widget):
@@ -152,7 +161,8 @@ class NIWidget(BaseDeviceWidget):
             textbox.validator().setRange(0.0, maximum, decimals=0)
         elif 'volt' in name:
             slider.divisor = 1000
-            port = '.'.join(path[:path.index("ports")+2])
+            port = '.'.join(path[:path.index("ports") + 2])
+            # Triangle and sawtooths max amplitude can be less than max volts due to offset so force fixup check
             maximum = getattr(self, f'{port}.device_max_volts')
             slider.setMaximum(maximum)
             textbox.validator().setRange(0.0, maximum, decimals=3)
@@ -160,14 +170,18 @@ class NIWidget(BaseDeviceWidget):
         slider.setMinimum(0)  # Todo: is it always zero?
         slider.setValue(getattr(self, f'{name}'))
 
-        textbox.validator().fixup = lambda value=None: self.textbox_fixup(value, name)
-        textbox.editingFinished.connect(lambda: slider.setValue(float(textbox.text())))
-        textbox.editingFinished.connect(lambda: self.update_waveform(name))
+        if 'amplitude_volts' in name or 'offset_volts' in name:
+            textbox.editingFinished.connect(lambda: self.check_amplitude(float(textbox.text()), name))
+            slider.sliderMoved.connect(lambda value: self.check_amplitude(value, name))
+        else:
+            textbox.editingFinished.connect(lambda: slider.setValue(float(textbox.text())))
+            textbox.validator().fixup = lambda value=None: self.textbox_fixup(value, name)
+            textbox.editingFinished.connect(lambda: self.update_waveform(name))
 
-        slider.sliderMoved.connect(lambda value: textbox.setText(str(value)))
-        slider.sliderMoved.connect(lambda: self.ValueChangedInside.emit(name))
-        slider.sliderMoved.connect(lambda: setattr(self, name, float(slider.value())))
-        slider.sliderMoved.connect(lambda: self.update_waveform(name))
+            slider.sliderMoved.connect(lambda value: textbox.setText(str(value)))
+            slider.sliderMoved.connect(lambda: self.ValueChangedInside.emit(name))
+            slider.sliderMoved.connect(lambda: setattr(self, name, float(slider.value())))
+            slider.sliderMoved.connect(lambda: self.update_waveform(name))
 
         setattr(self, f'{name}_slider', slider)
 
@@ -197,8 +211,40 @@ class NIWidget(BaseDeviceWidget):
             items.append(item)
         return items
 
+    def check_amplitude(self, value, name):
+        """Check if amplitude of triangle or sawtooth is below maximum"""
+
+        textbox = getattr(self, f'{name}_widget')
+        slider = getattr(self, f'{name}_slider')
+        maximum = slider.maximum()
+
+        name_lst = name.split('.')
+        parameters = '.'.join(name_lst[:name_lst.index("parameters") + 1])
+        port = '.'.join(name_lst[:name_lst.index("ports") + 2])
+        wl = name_lst[-1]
+
+        # sawtooth or triangle
+        offset = value if 'offset_volts' in name else getattr(self, f'{parameters}.offset_volts.channels.{wl}')
+        amplitude = value if 'amplitude_volts' in name else getattr(self, f'{parameters}.amplitude_volts.channels.{wl}')
+        other_voltage = amplitude if 'offset_volts' in name else offset
+
+        total_amplitude = offset + amplitude
+        if total_amplitude > maximum:
+            value = value - (total_amplitude - maximum)
+        elif ('amplitude_volts' in name and amplitude > offset) or \
+                ('offset_volts' in name and offset < amplitude):
+            value = other_voltage
+
+        textbox.setText(str(value))
+        slider.setValue(float(value))
+        self.ValueChangedInside.emit(name)
+        setattr(self, name, value)
+        self.pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value)
+        self.update_waveform(name)
+
     def textbox_fixup(self, value, name):
         """Fix entered values that are larger than maximum"""
+
         textbox = getattr(self, f'{name}_widget')
         slider = getattr(self, f'{name}_slider')
         maximum = slider.maximum()

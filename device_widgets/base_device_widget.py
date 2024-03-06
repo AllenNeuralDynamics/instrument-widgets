@@ -111,12 +111,12 @@ class BaseDeviceWidget(QMainWindow):
         value_type = type(value)
         textbox = QLineEdit(str(value))
         name_lst = name.split('.')
-        if len(name_lst) == 1:  # name refers to attribute
-            textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
-        else:  # name is a dictionary and key pair split by .
+        if len(name_lst) != 1:  # name is a dictionary and key pair split by .
             # Must find dictionary each editing finish
-            textbox.editingFinished.connect(lambda value:
-                                           self.pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value))
+            textbox.editingFinished.connect(lambda:
+                                           self.pathGet(self.__dict__, name_lst[0:-1]).
+                                            __setitem__(name_lst[-1], value_type(textbox.text())))
+        textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
         textbox.editingFinished.connect(lambda: self.ValueChangedInside.emit(name))
         arg_type = type(value)
         if arg_type in (float, int):
@@ -133,15 +133,11 @@ class BaseDeviceWidget(QMainWindow):
         box = QComboBox()
         box.addItems([str(x) for x in options])
         name_lst = name.split('.')
-        if len(name_lst) == 1:  # name refers to attribute
-            box.currentTextChanged.connect(lambda value: setattr(self, name, value))
-            box.setCurrentText(str(getattr(self, name)))
-        else:  # name is a dictionary and key pair split by .
-            dictionary = self.pathGet(self.__dict__, name_lst[0:-1])
-            # Must find dictionary each text change
+        if len(name_lst) != 1:  # name is a dictionary and key pair split by .
             box.currentTextChanged.connect(lambda value:
                                            self.pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value))
-            box.setCurrentText(dictionary.__getitem__(name_lst[-1]))
+        box.currentTextChanged.connect(lambda value: setattr(self, name, value))
+        box.setCurrentText(str(getattr(self, name)))
         # emit signal when changed so outside listener can update. needs to be after changing attribute
         box.currentTextChanged.connect(lambda: self.ValueChangedInside.emit(name))
         return box

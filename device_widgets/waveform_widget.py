@@ -1,7 +1,8 @@
 import numpy as np
-import pyqtgraph as pg
-from pyqtgraph import PlotWidget, GraphItem
-from qtpy.QtCore import Signal, Slot
+from pyqtgraph import PlotWidget, GraphItem, mkPen
+from qtpy.QtCore import Signal
+from qtpy.QtWidgets import QWidget, QLabel, QVBoxLayout
+from device_widgets.miscellaneous_widgets.q_clickable_label import QClickableLabel
 
 
 class SignalChangeVar:
@@ -19,13 +20,54 @@ class SignalChangeVar:
 
 class WaveformWidget(PlotWidget):
 
+    def __init__(self, **kwargs):
+        self.legend = QWidget()
+        self.legend.setLayout(QVBoxLayout())
+        self.legend_labels = {}
+
+        super().__init__(**kwargs)
+
     def plot(self, pos, waveform: str, parameters: list, *args, **kwargs):
         """Plot waveforms on graph"""
 
+        kwargs['pen']=mkPen(color=kwargs.get('color', 'grey'), width=3)
         item = DraggableGraphItem(**{'pos': pos, 'waveform': waveform, 'parameters': parameters, **kwargs})
         item.setData(**{'pos': pos, 'waveform': waveform, 'parameters': parameters, **kwargs})
         self.addItem(item)
+        if 'name' in kwargs.keys():
+            self.add_legend_item(item)
+
         return item
+
+    def add_legend_item(self, item):
+        """Add item to legend widget"""
+
+        self.legend_labels[item.name] = QClickableLabel(f'<font color="black">{item.name}</font>'
+                                                        f'<s><font size="50" color="{item.color}">&nbsp;&nbsp;&nbsp;'
+                                                        f'</font></s>')
+        self.legend_labels[item.name].clicked.connect(lambda: self.hide_show_line(item))
+        self.legend.layout().addWidget(self.legend_labels[item.name])
+
+    def removeDraggableGraphItem(self, item):
+        """Remove DraggableGraphItem and remove from legend"""
+
+        self.removeItem(item)
+        if item.name is not None:
+            label = self.legend_labels[item.name]
+            self.legend.layout().removeWidget(label)
+
+    def hide_show_line(self, item):
+        """Hide or reveal line if legend is clicked"""
+        if item.isVisible():
+            item.setVisible(False)
+            self.legend_labels[item.name].setText(f'<font color="grey">{item.name}</font>'
+                                                        f'<s><font size="50" color="{item.color}">&nbsp;&nbsp;&nbsp;'
+                                                        f'</font></s>')
+        else:
+            item.setVisible(True)
+            self.legend_labels[item.name].setText(f'<font color="black">{item.name}</font>'
+                                                        f'<s><font size="50" color="{item.color}">&nbsp;&nbsp;&nbsp;'
+                                                        f'</font></s>')
 
 
 class DraggableGraphItem(GraphItem):
@@ -44,6 +86,8 @@ class DraggableGraphItem(GraphItem):
         self.dragPoint = None
         self.dragOffset = None
         self.parameters = None
+        self.name = kwargs.get('name', None)
+        self.color = kwargs.get('color', 'black')
         super().__init__(**kwargs)
 
     def setData(self, **kwds):

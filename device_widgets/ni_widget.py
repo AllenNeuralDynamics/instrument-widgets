@@ -1,12 +1,13 @@
 from device_widgets.base_device_widget import BaseDeviceWidget
 from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QPushButton
 from qtpy.QtCore import Qt
+import qtpy.QtGui as QtGui
 from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
 from device_widgets.waveform_widget import WaveformWidget
 import numpy as np
 from scipy import signal
 from qtpy.QtCore import Slot
-
+from random import randint
 
 class NIWidget(BaseDeviceWidget):
 
@@ -37,7 +38,8 @@ class NIWidget(BaseDeviceWidget):
         # Set up waveform widget
         graph_parent = QTreeWidgetItem(self.tree, ['Graph'])
         graph_child = QTreeWidgetItem(graph_parent)
-        self.tree.setItemWidget(graph_child, 1, self.waveform_widget)
+        self.tree.setItemWidget(graph_child, 1, self.create_widget('H', legend=self.waveform_widget.legend,
+                                                                   graph=self.waveform_widget))
         graph_parent.addChild(graph_child)
 
         self.setCentralWidget(self.tree)
@@ -94,11 +96,13 @@ class NIWidget(BaseDeviceWidget):
             kwargs['device_min_volts'] = getattr(self, f'{port_name}.device_min_volts')
 
         if item := getattr(self, f'{port_name}.{wl}_plot_item', False):
-            self.waveform_widget.removeItem(item)
-
-
+            self.waveform_widget.removeDraggableGraphItem(item)
+        color = QtGui.QColor.colorNames()
+        color.remove('black')
         item = self.waveform_widget.plot(pos=np.column_stack((x, y)),
                                          waveform=waveform,
+                                         name=name_lst[name_lst.index("ports")+1] + ' ' + wl,
+                                         color=color[randint(0, len(color)-1)],
                                          parameters={**{k: v['channels'][wl] for k, v in
                                                         getattr(self, f'{port_name}.parameters').items()}, **kwargs})
         self.waveform_widget.setYRange(0, 5)

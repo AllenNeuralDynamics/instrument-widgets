@@ -1,7 +1,7 @@
 import numpy as np
 from pyqtgraph import PlotWidget, GraphItem, mkPen
 from qtpy.QtCore import Signal
-from qtpy.QtWidgets import QWidget, QLabel, QVBoxLayout
+from qtpy.QtWidgets import QWidget, QVBoxLayout
 from device_widgets.miscellaneous_widgets.q_clickable_label import QClickableLabel
 
 

@@ -1,5 +1,5 @@
 from device_widgets.base_device_widget import BaseDeviceWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QPushButton
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem
 from qtpy.QtCore import Qt
 import qtpy.QtGui as QtGui
 from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
@@ -105,7 +105,6 @@ class NIWidget(BaseDeviceWidget):
                                          color=color[randint(0, len(color)-1)],
                                          parameters={**{k: v['channels'][wl] for k, v in
                                                         getattr(self, f'{port_name}.parameters').items()}, **kwargs})
-        self.waveform_widget.setYRange(0, 5)
         item.valueChanged[str, float].connect(lambda var, val: self.waveform_value_changed(
             val, f'{port_name}.parameters.{var}.channels.{wl}'))
         setattr(self, f'{port_name}.{wl}_plot_item', item)

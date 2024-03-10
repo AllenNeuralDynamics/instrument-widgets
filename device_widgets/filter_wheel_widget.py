@@ -9,10 +9,9 @@ setConfigOptions(background=.95, antialias=True)
 
 
 class FilterWheelWidget(PlotWidget):
-    ValueChangedOutside = Signal((str,))
     ValueChangedInside = Signal((str,))
 
-    def __init__(self, filters: list, radius=10, **kwargs):
+    def __init__(self, filters: list[str], radius=10, **kwargs):
         """Simple scroll widget for filter wheel
         :param filters: list possible filters"""
 
@@ -25,14 +24,16 @@ class FilterWheelWidget(PlotWidget):
         self.radius = radius
 
         angles = [2 * pi / len(self.filters) * i for i in range(len(self.filters))]
+        points = {}
         for angle, slot in zip(angles, filters):
             point = FilterItem(text=str(slot), anchor=(.5, .5), color='black')
             point.setPos((self.radius + 1) * cos(angle),
                          (self.radius + 1) * sin(angle))
             point.pressed.connect(self.move_wheel)
             self.addItem(point)
+            points[slot] = point
 
-        wheel = QGraphicsEllipseItem(-self.radius, -self.radius, self.radius * 2, self.radius * 2)  # x, y, width, height
+        wheel = QGraphicsEllipseItem(-self.radius, -self.radius, self.radius * 2, self.radius * 2)
         wheel.setPen(mkPen((0, 0, 0, 100)))
         wheel.setBrush(mkBrush((128, 128, 128)))
         self.addItem(wheel)
@@ -42,12 +43,15 @@ class FilterWheelWidget(PlotWidget):
         self.addItem(self.notch)
 
         self.setAspectLocked(1)
+    def set_index(self, slot_name):
+        filter_index = self.filters.index(slot_name)
+        angle = [2 * pi / len(self.filters) * i for i in range(len(self.filters))][filter_index]
+        self.move_wheel(slot_name, ((self.radius + 1) * cos(angle),(self.radius + 1) * sin(angle)))
 
     def move_wheel(self, name, slot_pos):
+
+        self.ValueChangedInside.emit(name)
         notch_pos = [self.notch.getData()[0][0],self.notch.getData()[1][0]]
-        filter_index = self.filters.index(name)
-        angle = [2 * pi / len(self.filters) * i for i in range(len(self.filters))][filter_index]
-        slot_pos = [(self.radius + 1) * cos(angle),(self.radius + 1) * sin(angle)]
         thetas = []
         for x,y in [notch_pos, slot_pos]:
             if y > 0 > x or (y < 0 and x < 0):
@@ -146,4 +150,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     filterwheel = FilterWheelWidget(['405', '488', '561', '638', '594'])
     filterwheel.show()
+    filterwheel.set_index('561')
     sys.exit(app.exec_())

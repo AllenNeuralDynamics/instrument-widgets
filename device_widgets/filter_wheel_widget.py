@@ -17,6 +17,7 @@ class FilterWheelWidget(PlotWidget):
 
         super().__init__(**kwargs)
 
+        self._timeline = TimeLine(loopCount=1, interval=50)
         self.setMouseEnabled(x=False, y=False)
         self.showAxes(False, False)
 
@@ -39,7 +40,7 @@ class FilterWheelWidget(PlotWidget):
         self.addItem(wheel)
 
         self.notch = ScatterPlotItem(pos=[[(self.radius - 3) * cos(0),
-                                           (self.radius - 3) * sin(0)]], size=50)
+                                           (self.radius - 3) * sin(0)]], size=100)
         self.addItem(self.notch)
 
         self.setAspectLocked(1)
@@ -70,7 +71,7 @@ class FilterWheelWidget(PlotWidget):
             slot_theta = (slot_theta - notch_theta) - 360
         else:
             step_size = -1
-
+        self._timeline.stop()
         self._timeline = TimeLine(loopCount=1, interval=50, step_size=step_size)
         self._timeline.setFrameRange(notch_theta, slot_theta)
         self._timeline.frameChanged.connect(self.generate_data)

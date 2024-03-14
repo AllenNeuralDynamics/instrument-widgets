@@ -32,8 +32,6 @@ class CameraWidget(BaseDeviceWidget):
         self.add_live_button()
         self.add_snapshot_button()
 
-        print(self.__dict__)
-
     def add_live_button(self):
         """Add live button"""
 
@@ -41,7 +39,7 @@ class CameraWidget(BaseDeviceWidget):
         icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
         button.setIcon(icon)
         widget = self.centralWidget()
-        self.setCentralWidget(self.create_widget('V', live=button, widget=widget))
+        self.setCentralWidget(self.create_widget('V', button, widget))
         setattr(self, 'live_button', button)
 
     def add_snapshot_button(self):
@@ -51,7 +49,7 @@ class CameraWidget(BaseDeviceWidget):
         # icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
         # button.setIcon(icon)
         widget = self.centralWidget()
-        self.setCentralWidget(self.create_widget('V', live=button, widget=widget))
+        self.setCentralWidget(self.create_widget('V', button, widget))
         setattr(self, 'snapshot_button', button)
 
     def add_roi_validator(self):

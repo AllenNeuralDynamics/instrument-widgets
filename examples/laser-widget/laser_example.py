@@ -1,4 +1,4 @@
-from exa_spim_refactor.devices.lasers.simulated import SimulatedLaser
+from voxel.devices.lasers.simulated import SimulatedLaser
 from device_widgets.laser_widget import LaserWidget
 from qtpy.QtWidgets import QApplication
 import sys

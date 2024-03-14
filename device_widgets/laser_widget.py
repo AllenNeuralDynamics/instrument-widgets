@@ -49,8 +49,8 @@ class LaserWidget(BaseDeviceWidget):
         slider.setMaximum(int(self.max_power_mw))
         slider.setValue(int(self.power_setpoint_mw))
         slider.sliderMoved.connect(lambda value: textbox.setText(str(value)))
-        slider.sliderReleased.connect(lambda: setattr(self, 'power_setpoint_mw', float(slider.value())))
-        slider.sliderReleased.connect(lambda: self.ValueChangedInside.emit('power_setpoint_mw'))
+        slider.sliderMoved.connect(lambda: setattr(self, 'power_setpoint_mw', float(slider.value())))
+        slider.sliderMoved.connect(lambda: self.ValueChangedInside.emit('power_setpoint_mw'))
 
         self.power_setpoint_mw_widget_slider = slider
         self.property_widgets['power_setpoint_mw'].layout().addWidget(self.create_widget('H', text=textbox,

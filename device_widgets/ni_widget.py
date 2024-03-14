@@ -38,12 +38,12 @@ class NIWidget(BaseDeviceWidget):
         # Set up waveform widget
         graph_parent = QTreeWidgetItem(self.tree, ['Graph'])
         graph_child = QTreeWidgetItem(graph_parent)
-        self.tree.setItemWidget(graph_child, 1, self.create_widget('H', legend=self.waveform_widget.legend,
-                                                                   graph=self.waveform_widget))
+        self.tree.setItemWidget(graph_child, 1, self.create_widget('H', self.waveform_widget.legend,
+                                                                        self.waveform_widget))
         graph_parent.addChild(graph_child)
 
         self.setCentralWidget(self.tree)
-        # self.tree.expandAll()
+        self.tree.expandAll()
 
     def update_waveform(self, name):
         """Add waveforms to waveform widget"""
@@ -182,8 +182,10 @@ class NIWidget(BaseDeviceWidget):
             textbox.editingFinished.connect(lambda: self.update_waveform(name))
 
             slider.sliderMoved.connect(lambda value: textbox.setText(str(value)))
+            slider.sliderMoved.connect(lambda value: setattr(self, name, float(value)))
+            slider.sliderMoved.connect(lambda value:
+                                       self.pathGet(self.__dict__, path[0:-1]).__setitem__(path[-1], value))
             slider.sliderMoved.connect(lambda: self.ValueChangedInside.emit(name))
-            slider.sliderMoved.connect(lambda: setattr(self, name, float(slider.value())))
             slider.sliderMoved.connect(lambda: self.update_waveform(name))
 
         setattr(self, f'{name}_slider', slider)
@@ -201,7 +203,7 @@ class NIWidget(BaseDeviceWidget):
                 if 'channel' in name:
                     self.update_waveform(id)
                     self.create_sliders(id)
-                    widget = self.create_widget('H', t=getattr(self, f'{id}_widget'), s=getattr(self, f'{id}_slider'))
+                    widget = self.create_widget('H', getattr(self, f'{id}_widget'), getattr(self, f'{id}_slider'))
                 elif 'timing' in name:
                     widget = self.remodel_timing_widgets(id, widget)
                 elif key in ['port', 'waveform']:

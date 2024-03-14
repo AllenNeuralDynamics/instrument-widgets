@@ -10,6 +10,7 @@ import types
 import ruamel.yaml
 import re
 
+
 class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
     ValueChangedInside = Signal((str,))
@@ -58,17 +59,18 @@ class BaseDeviceWidget(QMainWindow):
                     # create attribute
                     setattr(self, f"{name}.{k}", getattr(self, name)[k])
                     label = QLabel(self.label_maker(k))
-                    if type(v) in [dict, ruamel.yaml.comments.CommentedMap] and widget_type != 'combo':  # values are complex and should be another widget
+                    if type(v) in [dict,
+                                   ruamel.yaml.comments.CommentedMap] and widget_type != 'combo':  # values are complex and should be another widget
                         box = self.create_widget('V', **self.create_property_widgets(
                             {f'{name}.{k}.{kv}': vv for kv, vv in v.items()}))  # unique key for attribute
                     else:
                         box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
-                    boxes[k] = self.create_widget('V', l=label, q=box)
+                    boxes[k] = self.create_widget('V', label, box)
             input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
 
             widgets[name] = self.create_widget(struct='H', **input_widgets)
 
-            if attr := getattr(self.device_object, name, False):    # if name is attribute of device
+            if attr := getattr(self.device_object, name, False):  # if name is attribute of device
                 widgets[name].setToolTip(attr.__doc__)  # Set tooltip to properties docstring
                 if not getattr(attr, 'fset', False):  # Constant, unchangeable attribute
                     widgets[name].setDisabled(True)
@@ -81,7 +83,7 @@ class BaseDeviceWidget(QMainWindow):
                 :param widget_type: widget type (QLineEdit or QCombobox)
                 :param values: input into widget"""
 
-        #options = values.keys() if widget_type == 'combo' else values
+        # options = values.keys() if widget_type == 'combo' else values
         box = getattr(self, f'create_{widget_type}_box')(name, values)
         setattr(self, f"{name}_widget", box)  # add attribute for widget input for easy access
 
@@ -114,7 +116,7 @@ class BaseDeviceWidget(QMainWindow):
         if len(name_lst) != 1:  # name is a dictionary and key pair split by .
             # Must find dictionary each editing finish
             textbox.editingFinished.connect(lambda:
-                                           self.pathGet(self.__dict__, name_lst[0:-1]).
+                                            self.pathGet(self.__dict__, name_lst[0:-1]).
                                             __setitem__(name_lst[-1], value_type(textbox.text())))
         textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
         textbox.editingFinished.connect(lambda: self.ValueChangedInside.emit(name))
@@ -170,12 +172,11 @@ class BaseDeviceWidget(QMainWindow):
 
     def __setattr__(self, name, value):
         """Overwrite __setattr__ to trigger update if property is changed"""
-
         self.__dict__[name] = value
         if currentframe().f_back.f_locals.get('self', None) != self:  # call from outside so update widgets
             self.ValueChangedOutside.emit(name)
 
-    def create_widget(self, struct: str, **kwargs):
+    def create_widget(self, struct: str, *args, **kwargs):
         """Creates either a horizontal or vertical layout populated with widgets
         :param struct: specifies whether the layout will be horizontal, vertical, or combo
         :param kwargs: all widgets contained in layout"""
@@ -184,14 +185,14 @@ class BaseDeviceWidget(QMainWindow):
         widget = QWidget()
         if struct == 'V' or struct == 'H':
             layout = layouts[struct]
-            for arg in kwargs.values():
+            for arg in [*kwargs.values(), *args]:
                 layout.addWidget(arg)
 
         elif struct == 'VH' or 'HV':
             bin0 = {}
             bin1 = {}
             j = 0
-            for v in kwargs.values():
+            for v in [*kwargs.values(), *args]:
                 bin0[str(v)] = v
                 j += 1
                 if j == 2:
@@ -220,3 +221,4 @@ class BaseDeviceWidget(QMainWindow):
         for k in path:
             dictionary = dictionary[k]
         return dictionary
+

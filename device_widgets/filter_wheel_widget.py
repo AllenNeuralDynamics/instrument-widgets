@@ -1,17 +1,53 @@
-import numpy as np
-from pyqtgraph import PlotWidget, TextItem, mkPen, mkBrush, ScatterPlotItem, setConfigOption, setConfigOptions
-from qtpy.QtWidgets import QApplication, QGraphicsEllipseItem
-from qtpy.QtCore import Signal, QTimer, Property, QObject, Slot
-import sys
+from pyqtgraph import PlotWidget, TextItem, mkPen, mkBrush, ScatterPlotItem, setConfigOptions
+from qtpy.QtWidgets import QGraphicsEllipseItem,QStyleOptionGraphicsItem
+from qtpy.QtCore import Signal, QTimer, Property, QObject, Slot, Qt, QPointF
 from math import sin, cos, pi, atan, degrees, radians
+from qtpy.QtGui import QPainterPath, QPainter, QPen
+from device_widgets.base_device_widget import BaseDeviceWidget
 
 setConfigOptions(background=.95, antialias=True)
 
+def scan_for_properties(device):
+    """Scan for properties with setters and getters in class and return dictionary
+    :param device: object to scan through for properties
+    """
 
-class FilterWheelWidget(PlotWidget):
+    prop_dict = {}
+    for attr_name in dir(device):
+        attr = getattr(type(device), attr_name, None)
+        if isinstance(attr, property) and getattr(device, attr_name) != None:
+            prop_dict[attr_name] = getattr(device, attr_name)
+
+    return prop_dict
+
+class FilterWheelWidget(BaseDeviceWidget):
+    def __init__(self, filter_wheel):
+        """Simple scroll widget for filter wheel
+        :param filter_wheel: filter wheel device"""
+
+        properties = scan_for_properties(filter_wheel)
+        super().__init__(type(filter_wheel), properties)
+
+        # Remove filter widget
+        self.centralWidget().layout().removeWidget(self.filter_widget)
+        self.filter_widget.deleteLater()
+        # recreate as combo box with filters as options
+        self.filter_widget = self.create_combo_box('filter', filter_wheel.filters)
+        self.filter_widget.setCurrentText(str(filter_wheel.filter))
+        # Add back to property widget
+        self.property_widgets['filter'].layout().addWidget(self.filter_widget)
+
+        # Create wheel widget and connect to signals
+        wheel_widget = FilterWheelGraph(list(filter_wheel.filters.keys()))
+        wheel_widget.ValueChangedInside[str].connect(lambda value: self.filter_widget.setCurrentText(str(value)))
+        self.filter_widget.currentTextChanged.connect(lambda value: wheel_widget.set_index(value))
+        self.ValueChangedOutside[str].connect(lambda name: wheel_widget.set_index(getattr(self, name)))
+        self.centralWidget().layout().addWidget(wheel_widget)
+
+class FilterWheelGraph(PlotWidget):
     ValueChangedInside = Signal((str,))
 
-    def __init__(self, filters: list[str], radius=10, **kwargs):
+    def __init__(self, filters, radius=10, **kwargs):
         """Simple scroll widget for filter wheel
         :param filters: list possible filters"""
 
@@ -24,9 +60,14 @@ class FilterWheelWidget(PlotWidget):
         self.filters = filters
         self.radius = radius
 
+        wheel = QGraphicsEllipseItem(-self.radius, -self.radius, self.radius * 2, self.radius * 2)
+        wheel.setPen(mkPen((0, 0, 0, 100)))
+        wheel.setBrush(mkBrush((128, 128, 128)))
+        self.addItem(wheel)
+
         angles = [2 * pi / len(self.filters) * i for i in range(len(self.filters))]
         points = {}
-        for angle, slot in zip(angles, filters):
+        for angle, slot in zip(angles, self.filters):
             point = FilterItem(text=str(slot), anchor=(.5, .5), color='black')
             point.setPos((self.radius + 1) * cos(angle),
                          (self.radius + 1) * sin(angle))
@@ -34,13 +75,8 @@ class FilterWheelWidget(PlotWidget):
             self.addItem(point)
             points[slot] = point
 
-        wheel = QGraphicsEllipseItem(-self.radius, -self.radius, self.radius * 2, self.radius * 2)
-        wheel.setPen(mkPen((0, 0, 0, 100)))
-        wheel.setBrush(mkBrush((128, 128, 128)))
-        self.addItem(wheel)
-
         self.notch = ScatterPlotItem(pos=[[(self.radius - 3) * cos(0),
-                                           (self.radius - 3) * sin(0)]], size=100)
+                                           (self.radius - 3) * sin(0)]], size=5, pxMode=False)
         self.addItem(self.notch)
 
         self.setAspectLocked(1)
@@ -72,7 +108,7 @@ class FilterWheelWidget(PlotWidget):
         else:
             step_size = -1
         self._timeline.stop()
-        self._timeline = TimeLine(loopCount=1, interval=50, step_size=step_size)
+        self._timeline = TimeLine(loopCount=1, interval=10, step_size=step_size)
         self._timeline.setFrameRange(notch_theta, slot_theta)
         self._timeline.frameChanged.connect(self.generate_data)
         self._timeline.start()
@@ -145,11 +181,3 @@ class TimeLine(QObject):
 
     def stop(self):
         self._timer.stop()
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    filterwheel = FilterWheelWidget(['405', '488', '561', '638', '594'])
-    filterwheel.show()
-    filterwheel.set_index('561')
-    sys.exit(app.exec_())

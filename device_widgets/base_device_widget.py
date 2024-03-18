@@ -10,6 +10,7 @@ import types
 import ruamel.yaml
 import re
 
+#TODO deal with lists somehow. Some way to add maybe if setter?
 
 class BaseDeviceWidget(QMainWindow):
     ValueChangedOutside = Signal((str,))
@@ -50,7 +51,6 @@ class BaseDeviceWidget(QMainWindow):
             else:
                 input_specs = value
                 widget_type = 'text'
-
             boxes = {}
             if arg_type not in [dict, ruamel.yaml.comments.CommentedMap] or type(arg_type) == enum.EnumMeta:
                 boxes[name] = self.create_attribute_widget(name, widget_type, input_specs)
@@ -96,7 +96,7 @@ class BaseDeviceWidget(QMainWindow):
 
         driver_vars = self.device_driver.__dict__
         for variable in driver_vars:
-            x = re.match(fr'\b{name.lower()}s?\b', variable.lower())
+            x = re.search(variable, fr'\b{name}s?\b', re.IGNORECASE)
             if x is not None:  # TODO: plurals that contain ies?
                 if type(driver_vars[variable]) in [dict, list]:
                     return driver_vars[variable]
@@ -154,7 +154,7 @@ class BaseDeviceWidget(QMainWindow):
             self._set_widget_text(name, value)
         else:
             for k, v in value.items():  # multiple widgets to set values for
-                self._set_widget_text(f"{name}.{k}", v)
+                self.update_property_widget(f'{name}.{k}')
 
     def _set_widget_text(self, name, value):
         """Set widget text if widget is QLineEdit or QCombobox

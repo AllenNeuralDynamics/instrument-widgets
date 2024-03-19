@@ -11,7 +11,8 @@ from random import randint
 
 class NIWidget(BaseDeviceWidget):
 
-    def __init__(self, daq, tasks):
+    def __init__(self, daq, tasks,
+                 advanced_user: bool = True):
         """Modify BaseDeviceWidget to be specifically for ni daq.
         :param tasks: tasks for daq"""
         # initialize base widget to create convenient widgets and signals
@@ -43,7 +44,7 @@ class NIWidget(BaseDeviceWidget):
         graph_parent.addChild(graph_child)
 
         self.setCentralWidget(self.tree)
-        self.tree.expandAll()
+        #self.tree.expandAll()
 
     def update_waveform(self, name):
         """Add waveforms to waveform widget"""

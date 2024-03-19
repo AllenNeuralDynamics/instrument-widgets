@@ -2,7 +2,7 @@ from pyqtgraph import PlotWidget, TextItem, mkPen, mkBrush, ScatterPlotItem, set
 from qtpy.QtWidgets import QGraphicsEllipseItem,QStyleOptionGraphicsItem
 from qtpy.QtCore import Signal, QTimer, Property, QObject, Slot, Qt, QPointF
 from math import sin, cos, pi, atan, degrees, radians
-from qtpy.QtGui import QPainterPath, QPainter, QPen
+from qtpy.QtGui import QPainterPath, QPainter, QPen, QFont
 from device_widgets.base_device_widget import BaseDeviceWidget
 
 setConfigOptions(background=.95, antialias=True)
@@ -21,7 +21,8 @@ def scan_for_properties(device):
     return prop_dict
 
 class FilterWheelWidget(BaseDeviceWidget):
-    def __init__(self, filter_wheel):
+    def __init__(self, filter_wheel,
+                 advanced_user: bool = True):
         """Simple scroll widget for filter wheel
         :param filter_wheel: filter wheel device"""
 
@@ -43,6 +44,10 @@ class FilterWheelWidget(BaseDeviceWidget):
         self.filter_widget.currentTextChanged.connect(lambda value: wheel_widget.set_index(value))
         self.ValueChangedOutside[str].connect(lambda name: wheel_widget.set_index(getattr(self, name)))
         self.centralWidget().layout().addWidget(wheel_widget)
+
+        if not advanced_user:
+            wheel_widget.setDisabled(True)
+            self.filter_widget.setDisabled(True)
 
 class FilterWheelGraph(PlotWidget):
     ValueChangedInside = Signal((str,))
@@ -69,6 +74,9 @@ class FilterWheelGraph(PlotWidget):
         points = {}
         for angle, slot in zip(angles, self.filters):
             point = FilterItem(text=str(slot), anchor=(.5, .5), color='black')
+            font = QFont()
+            font.setPixelSize(9)
+            point.setFont(font)
             point.setPos((self.radius + 1) * cos(angle),
                          (self.radius + 1) * sin(angle))
             point.pressed.connect(self.move_wheel)

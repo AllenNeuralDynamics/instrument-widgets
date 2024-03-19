@@ -4,6 +4,7 @@ from qtpy.QtWidgets import QPushButton, QStyle
 import sys
 import importlib
 
+
 def scan_for_properties(device):
     """Scan for properties with setters and getters in class and return dictionary
     :param device: object to scan through for properties
@@ -20,11 +21,13 @@ def scan_for_properties(device):
 
 class CameraWidget(BaseDeviceWidget):
 
-    def __init__(self, camera):     # TODO: Is it okay to pass in device and not use it except to find properties?
+    def __init__(self, camera,
+                 advanced_user: bool = True):
         """Modify BaseDeviceWidget to be specifically for camera. Main need are adding roi validator,
         live view button, and snapshot button.
         :param camera: camera object"""
-        self.camera_properties = scan_for_properties(camera)
+
+        self.camera_properties = scan_for_properties(camera) if advanced_user else {}
         self.camera_module = importlib.import_module(camera.__module__)
         super().__init__(type(camera), self.camera_properties)
 
@@ -67,18 +70,15 @@ class CameraWidget(BaseDeviceWidget):
         KEY = k.upper()
         specs = {'min': module_dict.get(f'MIN_{KEY}', 0),
                  'max': module_dict.get(f'MAX_{KEY}', value),
-                 'divisor' : module_dict.get(f'DIVISIBLE_{KEY}', 1)}
+                 'divisor': module_dict.get(f'DIVISIBLE_{KEY}', 1)}
         widget.blockSignals(True)
         if value < specs['min']:
             value = specs['min']
         elif value > specs['max']:
             value = specs['max']
-        elif value%specs['divisor'] != 0:
-            value = round(value/specs['divisor'])*specs['divisor']
+        elif value % specs['divisor'] != 0:
+            value = round(value / specs['divisor']) * specs['divisor']
         getattr(self, 'roi').__setitem__(k, value)
         widget.setText(str(value))
         self.ValueChangedInside.emit(f'roi.{k}')
         widget.blockSignals(False)
-
-
-

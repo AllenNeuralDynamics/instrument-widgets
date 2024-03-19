@@ -19,15 +19,17 @@ def scan_for_properties(device):
 class LaserWidget(BaseDeviceWidget):
 
     def __init__(self, laser,
-                 color: str = 'blue'):  # TODO: Is it okay to pass in device and not use it except to find properties?
+                 color: str = 'blue',
+                 advanced_user: bool = True):  # TODO: Is it okay to pass in device and not use it except to find properties?
         """Modify BaseDeviceWidget to be specifically for laser. Main need is adding slider .
         :param laser: laser object
         :param color: color of laser slider"""
-        self.laser_properties = scan_for_properties(laser)
+        self.laser_properties = scan_for_properties(laser) if advanced_user else \
+            {'power_setpoint_mw':laser.power_setpoint_mw}
         self.laser_module = importlib.import_module(laser.__module__)
         self.slider_color = color
         super().__init__(type(laser), self.laser_properties)
-
+        self.max_power_mw = laser.max_power_mw
         self.add_power_slider()
 
     def add_power_slider(self):

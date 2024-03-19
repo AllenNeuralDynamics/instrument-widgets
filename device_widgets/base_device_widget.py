@@ -67,7 +67,6 @@ class BaseDeviceWidget(QMainWindow):
                         box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
                     boxes[k] = self.create_widget('V', label, box)
             input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
-
             widgets[name] = self.create_widget(struct='H', **input_widgets)
 
             if attr := getattr(self.device_object, name, False):  # if name is attribute of device

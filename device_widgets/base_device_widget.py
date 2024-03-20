@@ -1,11 +1,9 @@
-from qtpy.QtCore import Signal, Slot
-from qtpy.QtGui import QValidator, QIntValidator, QDoubleValidator
-from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QMainWindow, QSpinBox
-from inspect import signature, getfullargspec, currentframe, getfile
-import os
+from qtpy.QtCore import Signal, Slot, QTimer
+from qtpy.QtGui import QIntValidator, QDoubleValidator
+from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QMainWindow
+from inspect import currentframe
 import importlib
 import enum
-from pathlib import Path
 import types
 import ruamel.yaml
 import re
@@ -27,20 +25,20 @@ class BaseDeviceWidget(QMainWindow):
         self.device_object = device_object
         self.device_driver = importlib.import_module(self.device_object.__module__) if type(self.device_object) != dict \
             else types.SimpleNamespace()  # dummy driver if object is dictionary
-        self.property_widgets = self.create_property_widgets(properties)
+        self.create_property_widgets(properties, 'property')
 
-        widget = self.create_widget('V', **self.property_widgets)
+        widget = create_widget('V', **self.property_widgets)
         self.setCentralWidget(widget)
         self.ValueChangedOutside[str].connect(self.update_property_widget)  # Trigger update when property value changes
 
-    def create_property_widgets(self, properties: dict):
+    def create_property_widgets(self, properties: dict, widget_group):
         """Create input widgets based on properties
          :param properties: dictionary containing properties within a class and mapping to values"""
 
         widgets = {}
         for name, value in properties.items():
             setattr(self, name, value)  # Add device properties as widget properties
-            input_widgets = {'label': QLabel(self.label_maker(name.split('.')[-1]))}
+            input_widgets = {'label': QLabel(label_maker(name.split('.')[-1]))}
             arg_type = type(value)
             search_name = arg_type.__name__ if arg_type.__name__ in dir(self.device_driver) else name
 
@@ -58,22 +56,24 @@ class BaseDeviceWidget(QMainWindow):
                 for k, v in input_specs.items():
                     # create attribute
                     setattr(self, f"{name}.{k}", getattr(self, name)[k])
-                    label = QLabel(self.label_maker(k))
+                    label = QLabel(label_maker(k))
                     if type(v) in [dict,
                                    ruamel.yaml.comments.CommentedMap] and widget_type != 'combo':  # values are complex and should be another widget
-                        box = self.create_widget('V', **self.create_property_widgets(
-                            {f'{name}.{k}.{kv}': vv for kv, vv in v.items()}))  # unique key for attribute
+                        box = create_widget('V', **self.create_property_widgets(
+                            {f'{name}.{k}.{kv}': vv for kv, vv in v.items()}, f'{name}.{k}'))  # unique key for attribute
                     else:
                         box = self.create_attribute_widget(f"{name}.{k}", widget_type, v)
-                    boxes[k] = self.create_widget('V', label, box)
-            input_widgets = {**input_widgets, 'widget': self.create_widget('H', **boxes)}
-            widgets[name] = self.create_widget(struct='H', **input_widgets)
+                    boxes[k] = create_widget('V', label, box)
+            input_widgets = {**input_widgets, 'widget': create_widget('H', **boxes)}
+            widgets[name] = create_widget(struct='H', **input_widgets)
 
             if attr := getattr(self.device_object, name, False):  # if name is attribute of device
                 widgets[name].setToolTip(attr.__doc__)  # Set tooltip to properties docstring
                 if not getattr(attr, 'fset', False):  # Constant, unchangeable attribute
                     widgets[name].setDisabled(True)
 
+        # Add attribute of grouped widgets for easy access
+        setattr(self, f'{widget_group}_widgets', widgets)
         return widgets
 
     def create_attribute_widget(self, name, widget_type, values):
@@ -115,7 +115,7 @@ class BaseDeviceWidget(QMainWindow):
         if len(name_lst) != 1:  # name is a dictionary and key pair split by .
             # Must find dictionary each editing finish
             textbox.editingFinished.connect(lambda:
-                                            self.pathGet(self.__dict__, name_lst[0:-1]).
+                                            pathGet(self.__dict__, name_lst[0:-1]).
                                             __setitem__(name_lst[-1], value_type(textbox.text())))
         textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
         textbox.editingFinished.connect(lambda: self.ValueChangedInside.emit(name))
@@ -136,7 +136,7 @@ class BaseDeviceWidget(QMainWindow):
         name_lst = name.split('.')
         if len(name_lst) != 1:  # name is a dictionary and key pair split by .
             box.currentTextChanged.connect(lambda value:
-                                           self.pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value))
+                                           pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value))
         box.currentTextChanged.connect(lambda value: setattr(self, name, value))
         box.setCurrentText(str(getattr(self, name)))
         # emit signal when changed so outside listener can update. needs to be after changing attribute
@@ -175,49 +175,68 @@ class BaseDeviceWidget(QMainWindow):
         if currentframe().f_back.f_locals.get('self', None) != self:  # call from outside so update widgets
             self.ValueChangedOutside.emit(name)
 
-    def create_widget(self, struct: str, *args, **kwargs):
-        """Creates either a horizontal or vertical layout populated with widgets
-        :param struct: specifies whether the layout will be horizontal, vertical, or combo
-        :param kwargs: all widgets contained in layout"""
+# Convenience Functions
+def create_widget(struct: str, *args, **kwargs):
+    """Creates either a horizontal or vertical layout populated with widgets
+    :param struct: specifies whether the layout will be horizontal, vertical, or combo
+    :param kwargs: all widgets contained in layout"""
 
-        layouts = {'H': QHBoxLayout(), 'V': QVBoxLayout()}
-        widget = QWidget()
-        if struct == 'V' or struct == 'H':
-            layout = layouts[struct]
-            for arg in [*kwargs.values(), *args]:
-                layout.addWidget(arg)
+    layouts = {'H': QHBoxLayout(), 'V': QVBoxLayout()}
+    widget = QWidget()
+    if struct == 'V' or struct == 'H':
+        layout = layouts[struct]
+        for arg in [*kwargs.values(), *args]:
+            layout.addWidget(arg)
 
-        elif struct == 'VH' or 'HV':
-            bin0 = {}
-            bin1 = {}
-            j = 0
-            for v in [*kwargs.values(), *args]:
-                bin0[str(v)] = v
-                j += 1
-                if j == 2:
-                    j = 0
-                    bin1[str(v)] = self.create_widget(struct=struct[0], **bin0)
-                    bin0 = {}
-            return self.create_widget(struct=struct[1], **bin1)
+    elif struct == 'VH' or 'HV':
+        bin0 = {}
+        bin1 = {}
+        j = 0
+        for v in [*kwargs.values(), *args]:
+            bin0[str(v)] = v
+            j += 1
+            if j == 2:
+                j = 0
+                bin1[str(v)] = create_widget(struct=struct[0], **bin0)
+                bin0 = {}
+        return create_widget(struct=struct[1], **bin1)
 
-        layout.setContentsMargins(0, 0, 0, 0)
-        widget.setLayout(layout)
-        return widget
+    layout.setContentsMargins(0, 0, 0, 0)
+    widget.setLayout(layout)
+    return widget
 
-    def label_maker(self, string):
-        """Removes underscores from variable names and capitalizes words
-        :param string: string to make label out of
-        """
+def label_maker(string):
+    """Removes underscores from variable names and capitalizes words
+    :param string: string to make label out of
+    """
 
-        label = string.split('_')
-        label = [words.capitalize() for words in label]
-        label = " ".join(label)
-        return label
+    label = string.split('_')
+    label = [words.capitalize() for words in label]
+    label = " ".join(label)
+    return label
 
-    def pathGet(self, dictionary: dict, path: list):
-        """Based on list of nested dictionary keys, return inner dictionary"""
+def pathGet(dictionary: dict, path: list):
+    """Based on list of nested dictionary keys, return inner dictionary"""
 
-        for k in path:
-            dictionary = dictionary[k]
-        return dictionary
+    for k in path:
+        dictionary = dictionary[k]
+    return dictionary
 
+def scan_for_properties(device):
+    """Scan for properties with setters and getters in class and return dictionary
+    :param device: object to scan through for properties
+    """
+
+    prop_dict = {}
+    for attr_name in dir(device):
+        attr = getattr(type(device), attr_name, None)
+        if isinstance(attr, property) and getattr(device, attr_name) != None:
+            prop_dict[attr_name] = getattr(device, attr_name)
+
+    return prop_dict
+
+def disable_button(button, pause=1000):
+    """Function to disable button clicks for a period of time to avoid crashing gui"""
+
+    button.setEnabled(False)
+    QTimer.singleShot(pause, lambda: button.setDisabled(False))

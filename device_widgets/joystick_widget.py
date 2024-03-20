@@ -1,22 +1,5 @@
-from device_widgets.base_device_widget import BaseDeviceWidget
-from qtpy.QtGui import QValidator, QIntValidator, QDoubleValidator, QIcon
-from qtpy.QtWidgets import QPushButton, QStyle
-import sys
-import importlib
-
-
-def scan_for_properties(device):
-    """Scan for properties with setters and getters in class and return dictionary
-    :param device: object to scan through for properties
-    """
-
-    prop_dict = {}
-    for attr_name in dir(device):
-        attr = getattr(type(device), attr_name, None)
-        if isinstance(attr, property) and getattr(device, attr_name) != None:
-            prop_dict[attr_name] = getattr(device, attr_name)
-
-    return prop_dict
+from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, label_maker, scan_for_properties
+from qtpy.QtWidgets import QLabel
 
 
 class JoystickWidget(BaseDeviceWidget):
@@ -26,14 +9,16 @@ class JoystickWidget(BaseDeviceWidget):
         """Modify BaseDeviceWidget to be specifically for Joystick.
         :param joystic: joystick object"""
 
-        properties = scan_for_properties(joystick) if advanced_user else {'joystick_mapping': joystick.joystick_mapping}
+        properties = scan_for_properties(joystick) if advanced_user else {}
         super().__init__(type(joystick), properties)
-        self.stage_axes = joystick.stage_axes
-        self.create_axis_combo_box()
+        if advanced_user:
+            self.create_axis_combo_box()
+
 
     def create_axis_combo_box(self):
         """Transform Instrument Axis text box into combo box and allow selection of only available axes"""
 
+        joystick_widgets = [QLabel('Joystick Mapping'), QLabel()]
         for joystick_axis, specs in self.joystick_mapping.items():
             unused = list(
                 set(self.stage_axes) - set(axis['instrument_axis'] for axis in self.joystick_mapping.values()))
@@ -43,6 +28,14 @@ class JoystickWidget(BaseDeviceWidget):
             old_widget.parentWidget().layout().replaceWidget(old_widget, new_widget)
             setattr(self, f'joystick_mapping.{joystick_axis}.instrument_axis_widget', new_widget)
             new_widget.currentTextChanged.connect(self.update_axes_selection)
+            widget_dict = {'label': QLabel(label_maker(joystick_axis)),
+                           **getattr(self, f'joystick_mapping.{joystick_axis}_widgets')}
+            joystick_widgets.append(create_widget('V', **widget_dict))
+
+        self.centralWidget().layout().replaceWidget(self.property_widgets['joystick_mapping'],
+                                                    create_widget('HV', *joystick_widgets))
+
+
 
     def update_axes_selection(self):
         """When joystick axis mapped to new stage axis, update available stage axis"""

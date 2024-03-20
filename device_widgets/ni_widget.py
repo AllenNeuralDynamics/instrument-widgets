@@ -1,4 +1,4 @@
-from device_widgets.base_device_widget import BaseDeviceWidget
+from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, label_maker, pathGet
 from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem
 from qtpy.QtCore import Qt
 import qtpy.QtGui as QtGui
@@ -6,15 +6,27 @@ from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScro
 from device_widgets.waveform_widget import WaveformWidget
 import numpy as np
 from scipy import signal
-from qtpy.QtCore import Slot
+from qtpy.QtCore import Slot, QSize, QModelIndex
 from random import randint
+import re
+
 
 class NIWidget(BaseDeviceWidget):
 
     def __init__(self, daq, tasks,
-                 advanced_user: bool = True):
+                 exposed_branches: dict = None,
+                 advanced_user: bool = True
+                 ):
         """Modify BaseDeviceWidget to be specifically for ni daq.
-        :param tasks: tasks for daq"""
+        :param tasks: tasks for daq
+        :param advanced_user: flag to disable waveform widget
+        :param exposed_branches: branches of tasks to be exposed in tree.
+        Needs to have keys that map directly into dask
+        """
+
+        self.advanced_user = advanced_user
+        self.exposed_branches = tasks if exposed_branches is None else exposed_branches
+
         # initialize base widget to create convenient widgets and signals
         super().__init__(daq, tasks)
         # available channels    #TODO: this seems pretty hard coded?  A way to avoid this?
@@ -24,32 +36,37 @@ class NIWidget(BaseDeviceWidget):
         self.dio_ports = [x.replace(f'{daq.id}/', '') for x in daq.dio_ports]
 
         # create waveform widget
-        self.waveform_widget = WaveformWidget()
+        if advanced_user:
+            self.waveform_widget = WaveformWidget()
 
-        # create tree widget
+        # create tree widget and format configured widgets into tree
         self.tree = QTreeWidget()
-        # format configured widgets into tree
-        for tasks, widgets in self.property_widgets.items():
-            header = QTreeWidgetItem(self.tree, [self.label_maker(tasks)])
+        for tasks, widgets in self.exposed_branches.items():
+            header = QTreeWidgetItem(self.tree,
+                                     [label_maker(tasks.split('.')[-1])])  # take last of list incase key is a map
             self.create_tree_widget(tasks, header)
 
         self.tree.setHeaderLabels(['Tasks', 'Values'])
         self.tree.setColumnCount(2)
 
         # Set up waveform widget
-        graph_parent = QTreeWidgetItem(self.tree, ['Graph'])
-        graph_child = QTreeWidgetItem(graph_parent)
-        self.tree.setItemWidget(graph_child, 1, self.create_widget('H', self.waveform_widget.legend,
-                                                                        self.waveform_widget))
-        graph_parent.addChild(graph_child)
+        if advanced_user:
+            graph_parent = QTreeWidgetItem(self.tree, ['Graph'])
+            graph_child = QTreeWidgetItem(graph_parent)
+            self.tree.setItemWidget(graph_child, 1, create_widget('H', self.waveform_widget.legend,
+                                                                  self.waveform_widget))
+            graph_parent.addChild(graph_child)
 
         self.setCentralWidget(self.tree)
-        #self.tree.expandAll()
+        self.tree.expandAll()
 
-    def update_waveform(self, name):
+    def update_waveform(self, channel_name):
         """Add waveforms to waveform widget"""
 
-        name_lst = name.split('.')
+        if not self.advanced_user:
+            return
+
+        name_lst = channel_name.split('.')
         task = '.'.join(name_lst[:name_lst.index("ports")])
         port_name = '.'.join(name_lst[:name_lst.index("ports") + 2])
         wl = name_lst[-1]
@@ -91,19 +108,22 @@ class NIWidget(BaseDeviceWidget):
                  voltages[-1]]
             x = [0, pre_rise_point, max_point, post_rise_point, len(voltages)]
 
-        if 'do_task' not in name:
+        if 'do_task' not in channel_name:
             # Add min and max for graph
             kwargs['device_max_volts'] = getattr(self, f'{port_name}.device_max_volts')
             kwargs['device_min_volts'] = getattr(self, f'{port_name}.device_min_volts')
 
         if item := getattr(self, f'{port_name}.{wl}_plot_item', False):
+            color = item.color
             self.waveform_widget.removeDraggableGraphItem(item)
-        color = QtGui.QColor.colorNames()
-        color.remove('black')
+        else:
+            colors = QtGui.QColor.colorNames()
+            colors.remove('black')
+            color = colors[randint(0, len(colors) - 1)]
         item = self.waveform_widget.plot(pos=np.column_stack((x, y)),
                                          waveform=waveform,
-                                         name=name_lst[name_lst.index("ports")+1] + ' ' + wl,
-                                         color=color[randint(0, len(color)-1)],
+                                         name=name_lst[name_lst.index("ports") + 1] + ' ' + wl,
+                                         color=color,
                                          parameters={**{k: v['channels'][wl] for k, v in
                                                         getattr(self, f'{port_name}.parameters').items()}, **kwargs})
         item.valueChanged[str, float].connect(lambda var, val: self.waveform_value_changed(
@@ -120,7 +140,7 @@ class NIWidget(BaseDeviceWidget):
         value = round(value, 0) if 'time' in name else round(value, 3)
         textbox.setText(str(value))
         slider.setValue(value)
-        dictionary = self.pathGet(self.__dict__, name_lst[0:-1])
+        dictionary = pathGet(self.__dict__, name_lst[0:-1])
         dictionary.__setitem__(name_lst[-1], value)
         setattr(self, name, value)
         self.ValueChangedInside.emit(name)
@@ -165,9 +185,9 @@ class NIWidget(BaseDeviceWidget):
             textbox.validator().setRange(0.0, maximum, decimals=0)
         elif 'volt' in name:
             slider.divisor = 1000
-            port = '.'.join(path[:path.index("ports") + 2])
+            port = '.'.join(path[:path.index("ports") + 2]) if 'ports' in path else 0
             # Triangle and sawtooths max amplitude can be less than max volts due to offset so force fixup check
-            maximum = getattr(self, f'{port}.device_max_volts')
+            maximum = getattr(self, f'{port}.device_max_volts', 5)
             slider.setMaximum(maximum)
             textbox.validator().setRange(0.0, maximum, decimals=3)
 
@@ -185,7 +205,7 @@ class NIWidget(BaseDeviceWidget):
             slider.sliderMoved.connect(lambda value: textbox.setText(str(value)))
             slider.sliderMoved.connect(lambda value: setattr(self, name, float(value)))
             slider.sliderMoved.connect(lambda value:
-                                       self.pathGet(self.__dict__, path[0:-1]).__setitem__(path[-1], value))
+                                       pathGet(self.__dict__, path[0:-1]).__setitem__(path[-1], value))
             slider.sliderMoved.connect(lambda: self.ValueChangedInside.emit(name))
             slider.sliderMoved.connect(lambda: self.update_waveform(name))
 
@@ -193,9 +213,10 @@ class NIWidget(BaseDeviceWidget):
 
     def create_tree_widget(self, name, parent=None):
         """Recursive function to format nested dictionary of ni task items"""
-
         parent = self.tree if parent is None else parent
-        dictionary = self.pathGet(self.__dict__, name.split('.'))
+        dictionary = self.mappedpathGet(self.exposed_branches.copy(), name.split('.'))
+        #dictionary = pathGet(self.exposed_branches.copy(), name.split('.'))
+        print(name, dictionary)
         items = []
         for key, value in dictionary.items():
             id = f'{name}.{key}'
@@ -204,7 +225,7 @@ class NIWidget(BaseDeviceWidget):
                 if 'channel' in name:
                     self.update_waveform(id)
                     self.create_sliders(id)
-                    widget = self.create_widget('H', getattr(self, f'{id}_widget'), getattr(self, f'{id}_slider'))
+                    widget = create_widget('H', getattr(self, f'{id}_widget'), getattr(self, f'{id}_slider'))
                 elif 'timing' in name:
                     widget = self.remodel_timing_widgets(id, widget)
                 elif key in ['port', 'waveform']:
@@ -215,7 +236,35 @@ class NIWidget(BaseDeviceWidget):
                 children = self.create_tree_widget(f'{name}.{key}', item)
                 item.addChildren(children)
             items.append(item)
+            self.check_to_hide(id, item)
         return items
+
+    def mappedpathGet(self, dictionary, path):
+
+        try:
+            dictionary = pathGet(dictionary, path)
+        except KeyError:
+            if '.'.join(path[0:2]) in dictionary.keys():
+                dictionary = self.mappedpathGet(dictionary['.'.join(path[0:2])], path[2:])
+            else:
+                dictionary = self.mappedpathGet(dictionary, ['.'.join(path[0:2]), *path[2:]])
+        finally:
+            return dictionary
+
+    def check_to_hide(self, name, item, dictionary=None):
+
+        # This is haaaaaacky. but might be good for now
+        dictionary = self.exposed_branches.copy() if dictionary is None else dictionary
+        try:
+            self.mappedpathGet(dictionary, name.split('.'))
+        except KeyError:
+            # keys = re.compile("|".join(dictionary.keys()))
+            # key = keys.search(name)
+            # if key is not None and name != name.replace(key.group(0) + '.', ""):
+            #         self.check_to_hide(name.replace(key.group(0) + '.', ""), item, dictionary[key.group(0)])
+            #
+            # elif not any(name in k for k in dictionary.keys()):
+                item.setHidden(True)
 
     def check_amplitude(self, value, name):
         """Check if amplitude of triangle or sawtooth is below maximum"""
@@ -226,7 +275,6 @@ class NIWidget(BaseDeviceWidget):
 
         name_lst = name.split('.')
         parameters = '.'.join(name_lst[:name_lst.index("parameters") + 1])
-        port = '.'.join(name_lst[:name_lst.index("ports") + 2])
         wl = name_lst[-1]
 
         # sawtooth or triangle
@@ -245,7 +293,7 @@ class NIWidget(BaseDeviceWidget):
         slider.setValue(float(value))
         self.ValueChangedInside.emit(name)
         setattr(self, name, value)
-        self.pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value)
+        pathGet(self.__dict__, name_lst[0:-1]).__setitem__(name_lst[-1], value)
         self.update_waveform(name)
 
     def textbox_fixup(self, value, name):
@@ -300,6 +348,7 @@ def square_wave(sampling_frequency_hz: float,
     time_samples = int(((period_time_ms + rest_time_ms) / 1000) * sampling_frequency_hz)
     start_sample = int((start_time_ms / 1000) * sampling_frequency_hz)
     end_sample = int((end_time_ms / 1000) * sampling_frequency_hz)
+
     waveform = np.zeros(time_samples) + min_volts
     waveform[start_sample:end_sample] = max_volts
 

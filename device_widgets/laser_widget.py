@@ -1,20 +1,7 @@
-from device_widgets.base_device_widget import BaseDeviceWidget
+from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 from qtpy.QtCore import Qt
 import importlib
 from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
-
-def scan_for_properties(device):
-    """Scan for properties with setters and getters in class and return dictionary
-    :param device: object to scan through for properties
-    """
-
-    prop_dict = {}
-    for attr_name in dir(device):
-        attr = getattr(type(device), attr_name, None)
-        if isinstance(attr, property) and getattr(device, attr_name) != None:
-            prop_dict[attr_name] = getattr(device, attr_name)
-
-    return prop_dict
 
 class LaserWidget(BaseDeviceWidget):
 
@@ -55,7 +42,7 @@ class LaserWidget(BaseDeviceWidget):
         slider.sliderMoved.connect(lambda: self.ValueChangedInside.emit('power_setpoint_mw'))
 
         self.power_setpoint_mw_widget_slider = slider
-        self.property_widgets['power_setpoint_mw'].layout().addWidget(self.create_widget('H', text=textbox,
+        self.property_widgets['power_setpoint_mw'].layout().addWidget(create_widget('H', text=textbox,
                                                                                          slider=slider))
 
     def power_slider_fixup(self, value):

@@ -1,23 +1,6 @@
-from device_widgets.base_device_widget import BaseDeviceWidget
-from qtpy.QtGui import QValidator, QIntValidator, QDoubleValidator, QIcon
+from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 from qtpy.QtWidgets import QPushButton, QStyle
-import sys
 import importlib
-
-
-def scan_for_properties(device):
-    """Scan for properties with setters and getters in class and return dictionary
-    :param device: object to scan through for properties
-    """
-
-    prop_dict = {}
-    for attr_name in dir(device):
-        attr = getattr(type(device), attr_name, None)
-        if isinstance(attr, property) and getattr(device, attr_name) != None:
-            prop_dict[attr_name] = getattr(device, attr_name)
-
-    return prop_dict
-
 
 class CameraWidget(BaseDeviceWidget):
 
@@ -42,7 +25,7 @@ class CameraWidget(BaseDeviceWidget):
         icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
         button.setIcon(icon)
         widget = self.centralWidget()
-        self.setCentralWidget(self.create_widget('V', button, widget))
+        self.setCentralWidget(create_widget('V', button, widget))
         setattr(self, 'live_button', button)
 
     def add_snapshot_button(self):
@@ -52,7 +35,7 @@ class CameraWidget(BaseDeviceWidget):
         # icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
         # button.setIcon(icon)
         widget = self.centralWidget()
-        self.setCentralWidget(self.create_widget('V', button, widget))
+        self.setCentralWidget(create_widget('V', button, widget))
         setattr(self, 'snapshot_button', button)
 
     def add_roi_validator(self):

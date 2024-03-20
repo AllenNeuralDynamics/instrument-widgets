@@ -21,11 +21,15 @@ class SignalChangeVar:
 class WaveformWidget(PlotWidget):
 
     def __init__(self, **kwargs):
+
+        # initialize legend widget
         self.legend = QWidget()
         self.legend.setLayout(QVBoxLayout())
         self.legend_labels = {}
 
         super().__init__(**kwargs)
+
+        self.setBackground('#262930')
 
     def plot(self, pos, waveform: str, parameters: list, *args, **kwargs):
         """Plot waveforms on graph"""
@@ -42,7 +46,7 @@ class WaveformWidget(PlotWidget):
     def add_legend_item(self, item):
         """Add item to legend widget"""
 
-        self.legend_labels[item.name] = QClickableLabel(f'<font color="black">{item.name}</font>'
+        self.legend_labels[item.name] = QClickableLabel(f'<font color="white">{item.name}</font>'
                                                         f'<s><font size="50" color="{item.color}">&nbsp;&nbsp;&nbsp;'
                                                         f'</font></s>')
         self.legend_labels[item.name].clicked.connect(lambda: self.hide_show_line(item))
@@ -65,7 +69,7 @@ class WaveformWidget(PlotWidget):
                                                         f'</font></s>')
         else:
             item.setVisible(True)
-            self.legend_labels[item.name].setText(f'<font color="black">{item.name}</font>'
+            self.legend_labels[item.name].setText(f'<font color="white">{item.name}</font>'
                                                         f'<s><font size="50" color="{item.color}">&nbsp;&nbsp;&nbsp;'
                                                         f'</font></s>')
 

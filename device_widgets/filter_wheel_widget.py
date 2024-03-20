@@ -3,22 +3,9 @@ from qtpy.QtWidgets import QGraphicsEllipseItem,QStyleOptionGraphicsItem
 from qtpy.QtCore import Signal, QTimer, Property, QObject, Slot, Qt, QPointF
 from math import sin, cos, pi, atan, degrees, radians
 from qtpy.QtGui import QPainterPath, QPainter, QPen, QFont
-from device_widgets.base_device_widget import BaseDeviceWidget
+from device_widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
 
-setConfigOptions(background=.95, antialias=True)
-
-def scan_for_properties(device):
-    """Scan for properties with setters and getters in class and return dictionary
-    :param device: object to scan through for properties
-    """
-
-    prop_dict = {}
-    for attr_name in dir(device):
-        attr = getattr(type(device), attr_name, None)
-        if isinstance(attr, property) and getattr(device, attr_name) != None:
-            prop_dict[attr_name] = getattr(device, attr_name)
-
-    return prop_dict
+setConfigOptions(antialias=True)
 
 class FilterWheelWidget(BaseDeviceWidget):
     def __init__(self, filter_wheel,
@@ -61,6 +48,7 @@ class FilterWheelGraph(PlotWidget):
         self._timeline = TimeLine(loopCount=1, interval=50)
         self.setMouseEnabled(x=False, y=False)
         self.showAxes(False, False)
+        self.setBackground('#262930')
 
         self.filters = filters
         self.radius = radius
@@ -73,7 +61,7 @@ class FilterWheelGraph(PlotWidget):
         angles = [2 * pi / len(self.filters) * i for i in range(len(self.filters))]
         points = {}
         for angle, slot in zip(angles, self.filters):
-            point = FilterItem(text=str(slot), anchor=(.5, .5), color='black')
+            point = FilterItem(text=str(slot), anchor=(.5, .5), color='white')
             font = QFont()
             font.setPixelSize(9)
             point.setFont(font)

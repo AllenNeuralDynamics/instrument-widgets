@@ -11,9 +11,10 @@ class CameraWidget(BaseDeviceWidget):
         :param camera: camera object"""
 
         self.camera_properties = scan_for_properties(camera) if advanced_user else {}
-        self.camera_module = importlib.import_module(camera.__module__)
         super().__init__(type(camera), self.camera_properties)
 
+        self.validator_attributes = {k:v for k, v in camera.__dict__.items() if 'min_' in k or
+                                                                                'max_' in k or 'step_' in k}
         self.add_roi_validator()
         self.add_live_button()
         self.add_snapshot_button()
@@ -47,13 +48,12 @@ class CameraWidget(BaseDeviceWidget):
 
     def roi_validator(self, k):
         """Check if input value adheres to max, min, divisor variables in module"""
-        module_dict = self.camera_module.__dict__
+
         widget = getattr(self, f'roi.{k}_widget')
         value = int(widget.text())
-        KEY = k.upper()
-        specs = {'min': module_dict.get(f'MIN_{KEY}', 0),
-                 'max': module_dict.get(f'MAX_{KEY}', value),
-                 'divisor': module_dict.get(f'DIVISIBLE_{KEY}', 1)}
+        specs = {'min': self.validator_attributes.get(f'min_{k}', 0),
+                 'max': self.validator_attributes.get(f'max_{k}', value),
+                 'divisor': self.validator_attributes.get(f'step_{k}', 1)}
         widget.blockSignals(True)
         if value < specs['min']:
             value = specs['min']

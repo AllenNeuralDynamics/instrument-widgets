@@ -7,7 +7,7 @@ import enum
 import types
 import ruamel.yaml
 import re
-
+import logging
 #TODO deal with lists somehow. Some way to add maybe if setter?
 
 class BaseDeviceWidget(QMainWindow):
@@ -20,6 +20,8 @@ class BaseDeviceWidget(QMainWindow):
         class is provided, then all properties are exposed
         :param device_object: class or dictionary of device object
         :param properties: dictionary contain properties displayed in widget as keys and initial values as values"""
+
+        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         super().__init__()
         self.device_object = device_object
@@ -149,7 +151,7 @@ class BaseDeviceWidget(QMainWindow):
         """Update property widget. Triggers when attribute has been changed outside of widget
         :param name: name of attribute and widget"""
 
-        value = getattr(self, name)
+        value = getattr(self, name, None)
         if type(value) not in [dict, ruamel.yaml.comments.CommentedMap]:  # single widget to set value for
             self._set_widget_text(name, value)
         else:
@@ -161,21 +163,23 @@ class BaseDeviceWidget(QMainWindow):
         :param name: widget name to set text to
         :param value: value of text"""
 
-        widget = getattr(self, f'{name}_widget')
-        widget.blockSignals(True)  # block signal indicating change since changing internally
-        widget_type = type(widget)
-        if widget_type == QLineEdit:
-            widget.setText(str(value))
-        elif widget_type == QComboBox:
-            widget.setCurrentText(str(value))
-        widget.blockSignals(False)
+        if hasattr(self, f'{name}_widget'):
+            widget = getattr(self, f'{name}_widget')
+            widget.blockSignals(True)  # block signal indicating change since changing internally
+            widget_type = type(widget)
+            if widget_type == QLineEdit:
+                widget.setText(str(value))
+            elif widget_type == QComboBox:
+                widget.setCurrentText(str(value))
+            widget.blockSignals(False)
+        else:
+            self.log.debug(f"{name} doesn't correspond to a widget")
 
     def __setattr__(self, name, value):
         """Overwrite __setattr__ to trigger update if property is changed"""
         self.__dict__[name] = value
         if currentframe().f_back.f_locals.get('self', None) != self:  # call from outside so update widgets
-            if getattr(self, f'{name}_widget', None) is not None:
-                self.ValueChangedOutside.emit(name)
+            self.ValueChangedOutside.emit(name)
 
 # Convenience Functions
 def create_widget(struct: str, *args, **kwargs):

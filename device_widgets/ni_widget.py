@@ -214,9 +214,8 @@ class NIWidget(BaseDeviceWidget):
     def create_tree_widget(self, name, parent=None):
         """Recursive function to format nested dictionary of ni task items"""
         parent = self.tree if parent is None else parent
+        # TODO: This is haaaaaacky. but might be good for now
         dictionary = self.mappedpathGet(self.exposed_branches.copy(), name.split('.'))
-        #dictionary = pathGet(self.exposed_branches.copy(), name.split('.'))
-        print(name, dictionary)
         items = []
         for key, value in dictionary.items():
             id = f'{name}.{key}'
@@ -241,6 +240,7 @@ class NIWidget(BaseDeviceWidget):
 
     def mappedpathGet(self, dictionary, path):
 
+        # TODO: This is haaaaaacky. but might be good for now
         try:
             dictionary = pathGet(dictionary, path)
         except KeyError:
@@ -253,18 +253,12 @@ class NIWidget(BaseDeviceWidget):
 
     def check_to_hide(self, name, item, dictionary=None):
 
-        # This is haaaaaacky. but might be good for now
+        # TODO: This is haaaaaacky. but might be good for now
         dictionary = self.exposed_branches.copy() if dictionary is None else dictionary
         try:
             self.mappedpathGet(dictionary, name.split('.'))
         except KeyError:
-            # keys = re.compile("|".join(dictionary.keys()))
-            # key = keys.search(name)
-            # if key is not None and name != name.replace(key.group(0) + '.', ""):
-            #         self.check_to_hide(name.replace(key.group(0) + '.', ""), item, dictionary[key.group(0)])
-            #
-            # elif not any(name in k for k in dictionary.keys()):
-                item.setHidden(True)
+            item.setHidden(True)
 
     def check_amplitude(self, value, name):
         """Check if amplitude of triangle or sawtooth is below maximum"""

@@ -33,7 +33,8 @@ class BaseDeviceWidget(QMainWindow):
 
     def create_property_widgets(self, properties: dict, widget_group):
         """Create input widgets based on properties
-         :param properties: dictionary containing properties within a class and mapping to values"""
+         :param properties: dictionary containing properties within a class and mapping to values
+         :param widget_group: attribute name for dictionary of widgets"""
 
         widgets = {}
         for name, value in properties.items():

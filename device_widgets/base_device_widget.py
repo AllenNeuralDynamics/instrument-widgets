@@ -174,7 +174,8 @@ class BaseDeviceWidget(QMainWindow):
         """Overwrite __setattr__ to trigger update if property is changed"""
         self.__dict__[name] = value
         if currentframe().f_back.f_locals.get('self', None) != self:  # call from outside so update widgets
-            self.ValueChangedOutside.emit(name)
+            if getattr(self, f'{name}_widget', None) is not None:
+                self.ValueChangedOutside.emit(name)
 
 # Convenience Functions
 def create_widget(struct: str, *args, **kwargs):

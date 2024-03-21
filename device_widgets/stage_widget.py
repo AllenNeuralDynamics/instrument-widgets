@@ -21,7 +21,6 @@ class StageWidget(BaseDeviceWidget):
                  advanced_user: bool = True):
         """Modify BaseDeviceWidget to be specifically for Stage. Main need is advanced user.
         :param stage: stage object"""
-
         self.stage_properties = scan_for_properties(stage) if advanced_user else {'position': stage.position}
         self.stage_module = importlib.import_module(stage.__module__)
         super().__init__(type(stage), self.stage_properties)

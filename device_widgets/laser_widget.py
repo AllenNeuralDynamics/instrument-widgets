@@ -2,6 +2,7 @@ from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, s
 from qtpy.QtCore import Qt
 import importlib
 from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
+from qtpy.QtGui import QIntValidator, QDoubleValidator
 
 class LaserWidget(BaseDeviceWidget):
 
@@ -24,7 +25,10 @@ class LaserWidget(BaseDeviceWidget):
         """Redo power widget to be slider"""
 
         textbox = self.power_setpoint_mw_widget
-        textbox.validator().setRange(0.0, self.max_power_mw, decimals=2)  # Todo: how to handle minimum power?
+        if type(textbox.validator()) == QDoubleValidator:
+            textbox.validator().setRange(0.0, self.max_power_mw, decimals=2)  # Todo: how to handle minimum power?
+        elif type(textbox.validator()) == QIntValidator:
+            textbox.validator().setRange(0, self.max_power_mw)
         textbox.validator().fixup = self.power_slider_fixup
         textbox.editingFinished.connect(lambda: slider.setValue(round(float(textbox.text()))))
 

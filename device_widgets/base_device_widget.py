@@ -236,7 +236,7 @@ def scan_for_properties(device):
     prop_dict = {}
     for attr_name in dir(device):
         attr = getattr(type(device), attr_name, None)
-        if isinstance(attr, property) and getattr(device, attr_name) != None:
+        if isinstance(attr, property) and getattr(device, attr_name, None) is not None:
             prop_dict[attr_name] = getattr(device, attr_name)
 
     return prop_dict

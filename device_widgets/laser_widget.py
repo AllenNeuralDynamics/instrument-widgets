@@ -11,6 +11,7 @@ class LaserWidget(BaseDeviceWidget):
         """Modify BaseDeviceWidget to be specifically for laser. Main need is adding slider .
         :param laser: laser object
         :param color: color of laser slider"""
+
         self.laser_properties = scan_for_properties(laser) if advanced_user else \
             {'power_setpoint_mw':laser.power_setpoint_mw}
         self.laser_module = importlib.import_module(laser.__module__)

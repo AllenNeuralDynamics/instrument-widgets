@@ -42,12 +42,12 @@ if __name__ == "__main__":
     do_task = daq_tasks['do_task']
     co_task = daq_tasks['co_task']
 
-    daq_object = DAQ("Dev2")
-    daq_object.add_task(ao_task, 'ao')
-    daq_object.add_task(do_task, 'do')
-    daq_object.add_task(co_task, 'co')
-    daq_object.generate_waveforms(ao_task, 'ao', '488')
-    daq_object.generate_waveforms(do_task, 'do', '488')
+    daq_object = DAQ("Dev2", daq_tasks)
+    daq_object.add_task('ao')
+    daq_object.add_task('do')
+    daq_object.add_task('co')
+    daq_object.generate_waveforms('ao', '488')
+    daq_object.generate_waveforms('do', '488')
     daq_object.write_ao_waveforms()
     daq_object.write_do_waveforms()
     daq_tasks = NIWidget(daq_object, daq_tasks)

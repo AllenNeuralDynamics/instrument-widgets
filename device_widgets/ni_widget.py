@@ -13,7 +13,7 @@ import re
 
 class NIWidget(BaseDeviceWidget):
 
-    def __init__(self, daq, tasks,
+    def __init__(self, daq,
                  exposed_branches: dict = None,
                  advanced_user: bool = True
                  ):
@@ -25,10 +25,10 @@ class NIWidget(BaseDeviceWidget):
         """
 
         self.advanced_user = advanced_user
-        self.exposed_branches = tasks if exposed_branches is None else exposed_branches
+        self.exposed_branches = {'tasks':daq.tasks} if exposed_branches is None else exposed_branches
 
         # initialize base widget to create convenient widgets and signals
-        super().__init__(daq, tasks)
+        super().__init__(daq, {'tasks':daq.tasks})
         # available channels    #TODO: this seems pretty hard coded?  A way to avoid this?
         self.ao_physical_chans = [x.replace(f'{daq.id}/', '') for x in daq.ao_physical_chans]
         self.co_physical_chans = [x.replace(f'{daq.id}/', '') for x in daq.co_physical_chans]

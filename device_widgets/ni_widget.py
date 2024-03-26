@@ -29,6 +29,7 @@ class NIWidget(BaseDeviceWidget):
 
         # initialize base widget to create convenient widgets and signals
         super().__init__(daq, {'tasks':daq.tasks})
+        del self.property_widgets['tasks']  # delete so view won't confuse and try and update. Hacky?
         # available channels    #TODO: this seems pretty hard coded?  A way to avoid this?
         self.ao_physical_chans = [x.replace(f'{daq.id}/', '') for x in daq.ao_physical_chans]
         self.co_physical_chans = [x.replace(f'{daq.id}/', '') for x in daq.co_physical_chans]

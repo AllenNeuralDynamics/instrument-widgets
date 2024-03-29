@@ -8,6 +8,7 @@ import types
 import ruamel.yaml
 import re
 import logging
+import inflection
 #TODO deal with lists somehow. Some way to add maybe if setter?
 
 class BaseDeviceWidget(QMainWindow):
@@ -98,8 +99,8 @@ class BaseDeviceWidget(QMainWindow):
 
         driver_vars = self.device_driver.__dict__
         for variable in driver_vars:
-            x = re.search(variable, fr'\b{name}s?\b', re.IGNORECASE)
-            if x is not None:  # TODO: plurals that contain ies?
+            x = re.search(variable, fr'\b{inflection.pluralize(name)}?\b', re.IGNORECASE)
+            if x is not None:
                 if type(driver_vars[variable]) in [dict, list]:
                     return driver_vars[variable]
                 elif type(driver_vars[variable]) == enum.EnumMeta:  # if enum
@@ -235,9 +236,12 @@ def scan_for_properties(device):
 
     prop_dict = {}
     for attr_name in dir(device):
-        attr = getattr(type(device), attr_name, None)
-        if isinstance(attr, property) and getattr(device, attr_name, None) is not None:
-            prop_dict[attr_name] = getattr(device, attr_name)
+        try:
+            attr = getattr(type(device), attr_name, None)
+            if isinstance(attr, property) and getattr(device, attr_name, None) is not None:
+                prop_dict[attr_name] = getattr(device, attr_name)
+        except ValueError:  # Some attributes in processes raise ValueError if not started
+            pass
 
     return prop_dict
 

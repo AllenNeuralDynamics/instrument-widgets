@@ -1,10 +1,8 @@
 from voxel.devices.lasers.simulated import SimulatedLaser
-from device_widgets.laser_widget import LaserWidget
+from instrument_widgets.device_widgets.laser_widget import LaserWidget
 from qtpy.QtWidgets import QApplication
 import sys
 from qtpy.QtCore import Slot
-import threading
-from time import sleep
 
 
 def scan_for_properties(device):

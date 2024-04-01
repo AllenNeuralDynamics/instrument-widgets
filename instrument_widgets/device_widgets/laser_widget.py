@@ -1,7 +1,7 @@
-from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
+from instrument_widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 from qtpy.QtCore import Qt
 import importlib
-from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
+from instrument_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
 from qtpy.QtGui import QIntValidator, QDoubleValidator
 
 class LaserWidget(BaseDeviceWidget):

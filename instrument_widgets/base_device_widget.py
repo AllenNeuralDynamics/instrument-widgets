@@ -9,6 +9,7 @@ import ruamel.yaml
 import re
 import logging
 import inflection
+from instrument_widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
 #TODO deal with lists somehow. Some way to add maybe if setter?
 
 class BaseDeviceWidget(QMainWindow):
@@ -114,7 +115,7 @@ class BaseDeviceWidget(QMainWindow):
 
         # TODO: better way to handle weird types that will crash QT?
         value_type = type(value)
-        textbox = QLineEdit(str(value))
+        textbox = QScrollableLineEdit(str(value))
         name_lst = name.split('.')
         if len(name_lst) != 1:  # name is a dictionary and key pair split by .
             # Must find dictionary each editing finish
@@ -123,9 +124,9 @@ class BaseDeviceWidget(QMainWindow):
                                             __setitem__(name_lst[-1], value_type(textbox.text())))
         textbox.editingFinished.connect(lambda: setattr(self, name, value_type(textbox.text())))
         textbox.editingFinished.connect(lambda: self.ValueChangedInside.emit(name))
-        arg_type = type(value)
-        if arg_type in (float, int):
-            validator = QIntValidator() if arg_type == int else QDoubleValidator()
+
+        if value_type in (float, int):
+            validator = QIntValidator() if value_type == int else QDoubleValidator()
             textbox.setValidator(validator)
         return textbox
 

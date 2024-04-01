@@ -1,4 +1,4 @@
-from device_widgets.base_device_widget import BaseDeviceWidget
+from instrument_widgets.base_device_widget import BaseDeviceWidget
 import importlib
 
 def scan_for_properties(device):

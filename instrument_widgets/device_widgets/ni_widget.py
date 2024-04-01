@@ -1,14 +1,13 @@
-from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, label_maker, pathGet
+from instrument_widgets.base_device_widget import BaseDeviceWidget, create_widget, label_maker, pathGet
 from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem
 from qtpy.QtCore import Qt
 import qtpy.QtGui as QtGui
-from device_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
-from device_widgets.waveform_widget import WaveformWidget
+from instrument_widgets.miscellaneous_widgets.q_scrollable_float_slider import QScrollableFloatSlider
+from instrument_widgets.device_widgets.waveform_widget import WaveformWidget
 import numpy as np
 from scipy import signal
-from qtpy.QtCore import Slot, QSize, QModelIndex
+from qtpy.QtCore import Slot
 from random import randint
-import re
 
 
 class NIWidget(BaseDeviceWidget):

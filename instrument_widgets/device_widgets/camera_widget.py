@@ -1,6 +1,6 @@
-from device_widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
+from instrument_widgets.base_device_widget import BaseDeviceWidget, create_widget, scan_for_properties
 from qtpy.QtWidgets import QPushButton, QStyle
-import importlib
+
 
 class CameraWidget(BaseDeviceWidget):
 

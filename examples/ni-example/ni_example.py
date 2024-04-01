@@ -1,16 +1,10 @@
 from voxel.devices.daq.ni import DAQ
-from device_widgets.ni_widget import NIWidget
+from instrument_widgets.device_widgets import NIWidget
 from qtpy.QtWidgets import QApplication
 import sys
 from qtpy.QtCore import Slot
-import os
 from pathlib import Path
-import threading
-from time import sleep
 from ruamel.yaml import YAML
-from device_widgets.waveform_widget import WaveformWidget
-import numpy as np
-import pyqtgraph as pg
 
 INSTRUMENT_YAML = Path('/\\examples\\'
                        'resources\\simulated_instrument.yaml')

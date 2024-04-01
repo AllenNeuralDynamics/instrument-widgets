@@ -1,9 +1,9 @@
 from pyqtgraph import PlotWidget, TextItem, mkPen, mkBrush, ScatterPlotItem, setConfigOptions
-from qtpy.QtWidgets import QGraphicsEllipseItem,QStyleOptionGraphicsItem
-from qtpy.QtCore import Signal, QTimer, Property, QObject, Slot, Qt, QPointF
+from qtpy.QtWidgets import QGraphicsEllipseItem
+from qtpy.QtCore import Signal, QTimer, Property, QObject, Slot
 from math import sin, cos, pi, atan, degrees, radians
-from qtpy.QtGui import QPainterPath, QPainter, QPen, QFont
-from device_widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
+from qtpy.QtGui import QFont
+from instrument_widgets.base_device_widget import BaseDeviceWidget, scan_for_properties
 
 setConfigOptions(antialias=True)
 

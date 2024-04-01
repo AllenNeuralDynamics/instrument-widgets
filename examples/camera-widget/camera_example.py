@@ -1,10 +1,8 @@
 from exa_spim_refactor.devices.camera.simulated import Camera
-from device_widgets.camera_widget import CameraWidget
+from instrument_widgets.device_widgets.camera_widget import CameraWidget
 from qtpy.QtWidgets import QApplication
 import sys
 from qtpy.QtCore import Slot
-import threading
-from time import sleep
 
 
 def scan_for_properties(device):

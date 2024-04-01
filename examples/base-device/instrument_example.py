@@ -1,9 +1,7 @@
-from device_widgets.base_device_widget import BaseDeviceWidget
+from instrument_widgets.base_device_widget import BaseDeviceWidget
 from qtpy.QtWidgets import QApplication
 import sys
 from qtpy.QtCore import Slot
-import threading
-from time import sleep
 from exa_spim_refactor.instrument import Instrument
 from exa_spim_refactor.acquisition import Acquisition
 from pathlib import Path

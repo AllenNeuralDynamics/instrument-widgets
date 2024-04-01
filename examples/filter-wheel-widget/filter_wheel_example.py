@@ -1,4 +1,4 @@
-from device_widgets.filter_wheel_widget import FilterWheelWidget
+from instrument_widgets.device_widgets.filter_wheel_widget import FilterWheelWidget
 from qtpy.QtWidgets import QApplication
 import sys
 from voxel.devices.filterwheel.simulated import FilterWheel

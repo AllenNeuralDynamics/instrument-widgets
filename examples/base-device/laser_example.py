@@ -1,5 +1,5 @@
 from examples.resources.simulated_laser import SimulatedLaser
-from device_widgets.base_device_widget import BaseDeviceWidget
+from instrument_widgets.base_device_widget import BaseDeviceWidget
 from qtpy.QtWidgets import QApplication
 import sys
 from qtpy.QtCore import Slot

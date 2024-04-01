@@ -1,0 +1,1 @@
+"""Widgets designed for devices"""

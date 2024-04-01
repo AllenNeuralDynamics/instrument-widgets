@@ -12,8 +12,8 @@ from device_widgets.waveform_widget import WaveformWidget
 import numpy as np
 import pyqtgraph as pg
 
-INSTRUMENT_YAML = Path('C:\\Users\\micah.woodard\\Projects\\device-widgets\\examples\\'
-                        'resources\\simulated_instrument.yaml')
+INSTRUMENT_YAML = Path('/\\examples\\'
+                       'resources\\simulated_instrument.yaml')
 
 @Slot(str)
 def widget_property_changed(name, device, widget):

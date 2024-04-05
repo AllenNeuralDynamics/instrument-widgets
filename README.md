@@ -1,1 +1,1 @@
-# device-widget
+# Widgets designed for voxel instrument

@@ -13,8 +13,9 @@ class CameraWidget(BaseDeviceWidget):
         self.camera_properties = scan_for_properties(camera) if advanced_user else {}
         super().__init__(type(camera), self.camera_properties)
 
-        self.validator_attributes = {k:v for k, v in camera.__dict__.items() if 'min_' in k or
-                                                                                'max_' in k or 'step_' in k}
+        # TODO: Automatically set up validators for properties with min max values
+        self.validator_attributes = {k: v for k, v in camera.__dict__.items() if 'min_' in k or
+                                     'max_' in k or 'step_' in k}
         self.add_roi_validator()
         self.add_live_button()
         self.add_snapshot_button()

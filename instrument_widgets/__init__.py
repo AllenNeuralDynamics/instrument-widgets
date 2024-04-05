@@ -1,1 +1,1 @@
-"""Widgets designed for instrument"""
+"""Widgets designed for voxel instrument"""

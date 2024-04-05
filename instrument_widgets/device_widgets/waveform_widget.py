@@ -4,7 +4,7 @@ from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QWidget, QVBoxLayout
 from instrument_widgets.miscellaneous_widgets.q_clickable_label import QClickableLabel
 
-
+# TODO: Use this else where to. Consider moving it so we don't have to copy paste?
 class SignalChangeVar:
 
     def __set_name__(self, owner, name):

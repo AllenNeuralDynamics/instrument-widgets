@@ -8,7 +8,7 @@ class QScrollableLineEdit(QLineEdit):
 
         if self.validator() is not None and type(self.validator()) in [QIntValidator, QDoubleValidator]:
             if type(self.validator()) == QDoubleValidator:
-                dec = len(self.text()[self.text().index('.')+1:])
+                dec = len(self.text()[self.text().index('.')+1:]) if '.' in self.text() else 0
                 change = 10**(-dec) if event.angleDelta().y() > 0 else -10**(-dec)
                 new_value = f"%.{dec}f" % float(float(self.text())+change)
             elif type(self.validator()) == QIntValidator:

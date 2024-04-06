@@ -2,19 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5a7210ab-29bc-49f4-8a36-fb0b4d725ebc" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/device_widget/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/resources/imaris.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/resources/simulated_instrument.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/resources/test_acquisition.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/schema_example.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/writer_example.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/device_widget/base_device_widget.py" beforeDir="false" afterPath="$PROJECT_DIR$/device_widget/base_device_widget.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/camera_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/camera_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/instrument_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/instrument_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/laser_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/laser_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/resources/simulated_filter_wheel.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/resources/simulated_stage.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/grid_widget_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/grid_widget_example.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/instrument_widgets/acquisition_widgets/grid_widget.py" beforeDir="false" afterPath="$PROJECT_DIR$/instrument_widgets/acquisition_widgets/grid_widget.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/instrument_widgets/miscellaneous_widgets/q_scrollable_line_edit.py" beforeDir="false" afterPath="$PROJECT_DIR$/instrument_widgets/miscellaneous_widgets/q_scrollable_line_edit.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,7 +26,7 @@
   "keyToString": {
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "last_opened_file_path": "C:/Users/micah.woodard/Projects/device-widget"
+    "last_opened_file_path": "C:/Users/micah.woodard/Projects/voxel"
   }
 }]]></component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />

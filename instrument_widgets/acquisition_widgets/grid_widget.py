@@ -1,11 +1,12 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem
 from pymmcore_widgets import GridPlanWidget as GridPlanWidgetMMCore
-from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QRadioButton
+from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox
 from qtpy.QtCore import Signal
-from qtpy.QtGui import QColor, QMatrix4x4, QVector3D,  QDoubleValidator
+from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QDoubleValidator
 import numpy as np
-from math import tan, radians
+from math import tan, radians, sqrt
 from instrument_widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
+
 
 class GridWidget(QMainWindow):
     """Widget combining GridPlanWidget and GridViewWidget"""
@@ -20,12 +21,12 @@ class GridWidget(QMainWindow):
         self.grid_plan = GridPlanWidget(x_limits_um, y_limits_um)
         self.grid_plan.valueChanged.connect(lambda value: setattr(self.grid_view, 'grid_coords',
                                                                   self.grid_plan.tile_positions))
-        self.grid_plan.setMaximumWidth(self.grid_plan.sizeHint().width())
+        self.grid_plan.setMaximumWidth(self.grid_plan.sizeHint().width()+30)
 
         self.grid_view = GridViewWidget(coordinate_plane, fov_dimensions, fov_position, view_color)
         self.grid_plan.path.toggled.connect(self.grid_view.toggle_path_visibility)
 
-        self.fov_position = self.grid_view.fov_position = fov_position
+        self.fov_position = self.grid_view.fov_position = self.grid_plan.fov_position = fov_position
         self.fov_dimensions = self.grid_plan.fov_dimensions = self.grid_view.fov_dimensions = fov_dimensions
 
         layout = QHBoxLayout()
@@ -48,6 +49,7 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         self._x_limits_um.sort()
         self._y_limits_um.sort()
 
+        self._fov_position = (0.0, 0.0)
         self._grid_position = (0.0, 0.0)
 
         # customize area widgets
@@ -68,29 +70,43 @@ class GridPlanWidget(GridPlanWidgetMMCore):
 
         # TODO: Should these go here?
         # Add extra checkboxes and inputs
-        self.path = QRadioButton()
+        self.path = QCheckBox('Show Path')
         self.path.setChecked(True)
 
-        self.anchor = QRadioButton()
+        self.anchor = QCheckBox('Anchor Grid:')
+        self.anchor.toggled.connect(self.toggle_grid_position)
+
         pos_layout = QHBoxLayout()
-        xinput = QScrollableLineEdit(str(self.grid_position[0]))
-        yinput = QScrollableLineEdit(str(self.grid_position[1]))
-        xinput.editingFinished.connect(lambda: setattr(self, 'grid_position', (float(xinput.text()), float(yinput.text()))))
-        xinput.editingFinished.connect(self._on_change)
-        yinput.editingFinished.connect(lambda: setattr(self, 'grid_position', (float(xinput.text()), float(yinput.text()))))
-        yinput.editingFinished.connect(self._on_change)
-        xinput.setValidator(QDoubleValidator())
-        yinput.setValidator(QDoubleValidator())
-        self.grid_position_widgets = [xinput, yinput]
+        self.grid_position_widgets = [QDoubleSpinBox(), QDoubleSpinBox()]
+        for axis, box in zip(['x', 'y'], self.grid_position_widgets):
+            box.setValue(self.grid_position[0])
+            box.setRange(*getattr(self, f'_{axis}_limits_um'))
+            box.setSuffix(" um")
+
+            box.valueChanged.connect(lambda: setattr(self, 'grid_position', (self.grid_position_widgets[0].value(),
+                                                                             self.grid_position_widgets[1].value())))
+            box.valueChanged.connect(self._on_change)
+            box.setDisabled(True)
 
         pos_layout.addWidget(self.anchor)
-        pos_layout.addWidget(xinput)
-        pos_layout.addWidget(yinput)
-        widget = QWidget()
-        widget.setLayout(pos_layout)
+        pos_layout.addWidget(self.grid_position_widgets[0])
+        pos_layout.addWidget(self.grid_position_widgets[1])
 
-        self.widget().layout().children()[-1].children()[0].addRow('Anchor Grid: ', widget)
-        self.widget().layout().children()[-1].children()[0].addRow('Show Path: ', self.path)
+        layout = QVBoxLayout()
+        layout.addWidget(self.path)
+        layout.addLayout(pos_layout)
+        widget = QWidget()
+        widget.setLayout(layout)
+
+        self.widget().layout().children()[-1].children()[0].addRow(widget)
+
+    def toggle_grid_position(self, enable):
+        """If grid is anchored, allow user to input grid position"""
+
+        self.grid_position_widgets[0].setEnabled(enable)
+        self.grid_position_widgets[1].setEnabled(enable)
+        if not enable:  # Graph is anchored
+            self.grid_position = self.fov_position
 
     @property
     def fov_dimensions(self):
@@ -102,17 +118,27 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         self.setFovHeight(value[1])
 
     @property
+    def fov_position(self):
+        return self._fov_position
+
+    @fov_position.setter
+    def fov_position(self, value):
+        self._fov_position = value
+        if not self.anchor.isChecked():
+            self.grid_position_widgets[0].setValue(value[0])
+            self.grid_position_widgets[1].setValue(value[1])
+
+    @property
     def grid_position(self):
         return self._grid_position
 
     @grid_position.setter
     def grid_position(self, value):
         self._grid_position = value
-
-        if (float(self.grid_position_widgets[0].text()), float(self.grid_position_widgets[1].text())) != value:
-            print('changing widgets')
-            self.grid_position_widgets[0].setText(value[0])
-            self.grid_position_widgets[1].setText(value[1])
+        if (float(self.grid_position_widgets[0].value()), float(self.grid_position_widgets[1].value())) != value:
+            self.grid_position_widgets[0].setValue(value[0])
+            self.grid_position_widgets[1].setValue(value[1])
+            self._on_change()
 
     @property
     def tile_positions(self):
@@ -165,9 +191,10 @@ class GridViewWidget(GLViewWidget):
         # TODO: units? Checks?
         self.fov_dimensions = fov_dimensions
         self.fov_position = fov_position
-        self.grid_coords = []
+        self.grid_coords = [(0, 0)]
         self.grid_BoxItems = []
-        self.grid_LinePlotItem = None
+        self.grid_LinePlotItem = GLLinePlotItem()
+        self.addItem(self.grid_LinePlotItem)
 
         self.fov_view = GLBoxItem()
         self.fov_view.setColor(QColor(view_color))
@@ -183,8 +210,15 @@ class GridViewWidget(GLViewWidget):
         self.opts['elevation'] = 90
 
         self.valueChanged[str].connect(self.update_view)
+        self.resized.connect(self._update_opts)
 
-        self._update_opts('fov_dimensions')
+        self.opts['center'] = QVector3D(self.fov_position[0] + self.fov_dimensions[0] / 2,
+                                        self.fov_position[1] + self.fov_dimensions[1] / 2,
+                                        0)
+        y_dist = (self.fov_dimensions[1] * 2) / 2 * tan(radians(self.opts['fov'])) \
+                 * (self.size().width() / self.size().height())
+        x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
+        self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
     def update_view(self, attribute_name):
         """Update attributes of grid
@@ -200,13 +234,10 @@ class GridViewWidget(GLViewWidget):
         elif attribute_name == 'grid_coords':
             self.update_grid()
 
-        self._update_opts(attribute_name)
+        self._update_opts()
 
     def update_grid(self):
         """Update displayed grid"""
-
-        if self.grid_LinePlotItem is not None:
-            self.removeItem(self.grid_LinePlotItem)
 
         for box in self.grid_BoxItems:
             self.removeItem(box)
@@ -221,50 +252,61 @@ class GridViewWidget(GLViewWidget):
                                         0, 0, 0, 1))
             self.grid_BoxItems.append(box)
             self.addItem(box)
-        path_offset = [fov*.5 for fov in self.fov_dimensions]
+        path_offset = [fov * .5 for fov in self.fov_dimensions]
         path = np.array([*[[x + path_offset[0], y + path_offset[1], 0] for x, y in self.grid_coords]])
-        self.grid_LinePlotItem = GLLinePlotItem(pos=path)
-        self.grid_LinePlotItem.setData(color=QColor('lime'))
-        self.addItem(self.grid_LinePlotItem)
+        self.grid_LinePlotItem.setData(pos=path, color=QColor('lime'))
 
     def toggle_path_visibility(self, visible):
         """Slot for a radio button to toggle visibility of path"""
 
-        if self.grid_LinePlotItem is not None:
-            if visible:
-                self.grid_LinePlotItem.setVisible(True)
-            else:
-                self.grid_LinePlotItem.setVisible(False)
+        if visible:
+            self.grid_LinePlotItem.setVisible(True)
+        else:
+            self.grid_LinePlotItem.setVisible(False)
 
-    def _update_opts(self, trigger):
+    def _update_opts(self):
         """Update view of widget"""
 
-        if trigger == 'grid_coords':
-            # Center view on grid
-            x_extrema = (min([x for x, y in self.grid_coords]), max([x for x, y in self.grid_coords]))
-            y_extrema = (min([y for x, y in self.grid_coords]), max([y for x, y in self.grid_coords]))
+        extrema = {'x_min': min([x for x, y in self.grid_coords]), 'x_max': max([x for x, y in self.grid_coords]),
+                   'y_min': min([y for x, y in self.grid_coords]), 'y_max': max([y for x, y in self.grid_coords])}
 
-            self.opts['center'] = QVector3D(((x_extrema[0] + x_extrema[1]) / 2) + self.fov_dimensions[0] / 2,
-                                            ((y_extrema[0] + y_extrema[1]) / 2) + self.fov_dimensions[1] / 2,
-                                            0)
+        x_fov = self.fov_dimensions[0]
+        y_fov = self.fov_dimensions[1]
+
+        x_pos = self.fov_position[0]
+        y_pos = self.fov_position[1]
+
+        distances = [sqrt((x_pos - x) ** 2 + (y_pos - y) ** 2) for x, y in self.grid_coords]
+        max_index = distances.index(max(distances, key=abs))
+        furthest_tile = {'x': self.grid_coords[max_index][0],
+                         'y': self.grid_coords[max_index][1]}
+        # if fov_position is within grid or farthest distince is between grid tiles
+        if extrema['x_min'] <= x_pos <= extrema['x_max'] or \
+                abs(furthest_tile['x']-x_pos)<abs(extrema['x_max']-extrema['x_min']):
+            x_center = ((extrema['x_min'] + extrema['x_max']) / 2) + x_fov / 2
+            x_dist = ((extrema['x_max'] - extrema['x_min']) + (x_fov * 2)) / 2 * tan(radians(self.opts['fov']))
+        else:
+            x_center = ((x_pos + furthest_tile['x']) / 2) + x_fov / 2
+            x_dist = (abs(x_pos - furthest_tile['x']) + (x_fov * 2)) / 2 * tan(radians(self.opts['fov']))
+
+        if extrema['y_min'] <= y_pos <= extrema['y_max'] or \
+                abs(furthest_tile['y']-y_pos)<abs(extrema['y_max']-extrema['y_min']):
+            y_center = ((extrema['y_min'] + extrema['y_max']) / 2) + y_fov / 2
             # View does not scale when changing vertical size of widget so for y_dist we need to take into account the
             # difference between the height and width
-            y_dist = ((y_extrema[1] - y_extrema[0]) + (self.fov_dimensions[1] * 2)) \
-                     / 2 * tan(radians(self.opts['fov'])) * (self.size().width() / self.size().height())
-            x_dist = ((x_extrema[1] - x_extrema[0]) + (self.fov_dimensions[0] * 2)) / 2 * tan(radians(self.opts['fov']))
-            self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
-
-        elif trigger == 'fov_position':
-            pass
-
-        elif trigger == 'fov_dimensions':
-            self.opts['center'] = QVector3D(self.fov_position[0] + self.fov_dimensions[0] / 2,
-                                            self.fov_position[1] + self.fov_dimensions[1] / 2,
-                                            0)
-            y_dist = (self.fov_dimensions[1] * 2) / 2 * tan(radians(self.opts['fov'])) \
+            y_dist = ((extrema['y_max'] - extrema['y_min']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov']))\
                      * (self.size().width() / self.size().height())
-            x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
-            self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
+        else:
+            y_center = ((y_pos + furthest_tile['y']) / 2) + y_fov / 2
+            y_dist = (abs(y_pos - furthest_tile['y']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov']))\
+                     * (self.size().width() / self.size().height())
+
+
+        self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
+        self.opts['center'] = QVector3D(
+            x_center,
+            y_center,
+            0)
 
     def mousePressEvent(self, event):
         pass

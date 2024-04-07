@@ -1,7 +1,8 @@
-from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem
+from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLScatterPlotItem
 from pymmcore_widgets import GridPlanWidget as GridPlanWidgetMMCore
-from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox
-from qtpy.QtCore import Signal
+from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox,\
+    QMessageBox
+from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QDoubleValidator
 import numpy as np
 from math import tan, radians, sqrt
@@ -24,10 +25,11 @@ class GridWidget(QMainWindow):
         self.grid_plan.setMaximumWidth(self.grid_plan.sizeHint().width()+30)
 
         self.grid_view = GridViewWidget(coordinate_plane, fov_dimensions, fov_position, view_color)
+        self.grid_view.valueChanged.connect(lambda value: setattr(self, value, getattr(self.grid_view, value)))
         self.grid_plan.path.toggled.connect(self.grid_view.toggle_path_visibility)
 
-        self.fov_position = self.grid_view.fov_position = self.grid_plan.fov_position = fov_position
-        self.fov_dimensions = self.grid_plan.fov_dimensions = self.grid_view.fov_dimensions = fov_dimensions
+        self.fov_position = fov_position
+        self.fov_dimensions = fov_dimensions
 
         layout = QHBoxLayout()
         layout.addWidget(self.grid_plan)
@@ -36,6 +38,28 @@ class GridWidget(QMainWindow):
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
 
+    @property
+    def fov_position(self):
+        return self._fov_position
+
+    @fov_position.setter
+    def fov_position(self, value):
+        self._fov_position = value
+        if self.grid_view.fov_position != value:
+            self.grid_view.fov_position = value
+        if self.grid_plan.fov_position != value:
+            self.grid_plan.fov_position = value
+    @property
+    def fov_dimensions(self):
+        return self._fov_dimensions
+
+    @fov_dimensions.setter
+    def fov_dimensions(self, value):
+        self._fov_dimensions = value
+        if self.grid_view.fov_dimensions != value:
+            self.grid_view.fov_dimensions = value
+        if self.grid_plan.fov_dimensions != value:
+            self.grid_plan.fov_dimensions = value
 
 class GridPlanWidget(GridPlanWidgetMMCore):
     """Widget to plan out grid. Pymmcore already has a great one"""
@@ -123,10 +147,12 @@ class GridPlanWidget(GridPlanWidgetMMCore):
 
     @fov_position.setter
     def fov_position(self, value):
+
         self._fov_position = value
         if not self.anchor.isChecked():
             self.grid_position_widgets[0].setValue(value[0])
             self.grid_position_widgets[1].setValue(value[1])
+        self._on_change()
 
     @property
     def grid_position(self):
@@ -220,6 +246,11 @@ class GridViewWidget(GLViewWidget):
         x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
+        point = GLScatterPlotItem(pos = (53.0, 39.5,0),
+                                  size = 50)
+        point.setData(pos=(53.0, 39.5,0), size=50, pxMode=False)
+        self.addItem(point)
+
     def update_view(self, attribute_name):
         """Update attributes of grid
         :param attribute_name: name of attribute to update"""
@@ -285,6 +316,7 @@ class GridViewWidget(GLViewWidget):
                 abs(furthest_tile['x']-x_pos)<abs(extrema['x_max']-extrema['x_min']):
             x_center = ((extrema['x_min'] + extrema['x_max']) / 2) + x_fov / 2
             x_dist = ((extrema['x_max'] - extrema['x_min']) + (x_fov * 2)) / 2 * tan(radians(self.opts['fov']))
+
         else:
             x_center = ((x_pos + furthest_tile['x']) / 2) + x_fov / 2
             x_dist = (abs(x_pos - furthest_tile['x']) + (x_fov * 2)) / 2 * tan(radians(self.opts['fov']))
@@ -296,6 +328,7 @@ class GridViewWidget(GLViewWidget):
             # difference between the height and width
             y_dist = ((extrema['y_max'] - extrema['y_min']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov']))\
                      * (self.size().width() / self.size().height())
+            
         else:
             y_center = ((y_pos + furthest_tile['y']) / 2) + y_fov / 2
             y_dist = (abs(y_pos - furthest_tile['y']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov']))\
@@ -308,8 +341,35 @@ class GridViewWidget(GLViewWidget):
             y_center,
             0)
 
+    def move_fov_query(self, new_fov_pos):
+        """Message box asking if user wants to move fov position"""
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Question)
+        msgBox.setText(f"Do you want to move the field of view from {self.fov_position} to"
+                       f"{new_fov_pos}?")
+        msgBox.setWindowTitle("Movig FOV")
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+
+        return msgBox.exec()
+
     def mousePressEvent(self, event):
-        pass
+        """Override mouseMoveEvent so user can't change view
+        and allow user to move fov easier"""
+
+        if event.button() == Qt.LeftButton:
+            # Translate mouseclick x, y into view widget x, y
+            x_dist = self.opts['distance']/tan(radians(self.opts['fov']))
+            y_dist = self.opts['distance']/tan(radians(self.opts['fov']))*(self.size().height()/self.size().width())
+            x_scale = ((event.x() * 2 * x_dist) / self.size().width())
+            y_scale = ((event.y() * 2 * y_dist) / self.size().height())
+            x = (self.opts['center'].x() - x_dist + x_scale)-.5 * self.fov_dimensions[0]
+            y = (self.opts['center'].y() + y_dist - y_scale)-.5 * self.fov_dimensions[1]
+            new_fov = (x, y)
+            return_value = self.move_fov_query(new_fov)
+            if return_value == QMessageBox.Ok:
+                self.fov_position = new_fov # TODO: How to handle this with real stage
+            else:
+                return
 
     def mouseMoveEvent(self, event):
         """Override mouseMoveEvent so user can't change view"""

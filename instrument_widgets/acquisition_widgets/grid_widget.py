@@ -1,9 +1,9 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLScatterPlotItem
 from pymmcore_widgets import GridPlanWidget as GridPlanWidgetMMCore
-from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox,\
-    QMessageBox
+from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox, \
+    QMessageBox, QScrollBar
 from qtpy.QtCore import Signal, Qt
-from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QDoubleValidator
+from qtpy.QtGui import QColor, QMatrix4x4, QVector3D
 import numpy as np
 from math import tan, radians, sqrt
 from instrument_widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
@@ -12,24 +12,32 @@ from instrument_widgets.miscellaneous_widgets.q_scrollable_line_edit import QScr
 class GridWidget(QMainWindow):
     """Widget combining GridPlanWidget and GridViewWidget"""
 
-    def __init__(self, x_limits_um, y_limits_um,
-                 coordinate_plane: tuple[str] = ('x', 'y'),
-                 fov_dimensions: tuple[float] = (1.0, 1.0),
-                 fov_position: tuple[float] = (0.0, 0.0),
-                 view_color: str = 'yellow'):
+    def __init__(self, limits: {'x': [float('-inf'), float('inf')], 'y': [float('-inf'), float('inf')]},
+                 coordinate_plane: list[str] = ['x', 'y'],
+                 fov_dimensions: list[float] = [1.0, 1.0],
+                 fov_position: list[float] = [0.0, 0.0],
+                 view_color: str = 'yellow',
+                 unit: str = 'um'):
         super().__init__()
 
-        self.grid_plan = GridPlanWidget(x_limits_um, y_limits_um)
+        self.grid_plan = GridPlanWidget(*limits.values(), unit)
         self.grid_plan.valueChanged.connect(lambda value: setattr(self.grid_view, 'grid_coords',
                                                                   self.grid_plan.tile_positions))
-        self.grid_plan.setMaximumWidth(self.grid_plan.sizeHint().width()+30)
+
+        self.grid_plan.setFixedWidth(self.grid_plan.sizeHint().width() + 30)  # Will take up whole widget if not set
+        self.grid_plan.setMinimumHeight(303)
 
         self.grid_view = GridViewWidget(coordinate_plane, fov_dimensions, fov_position, view_color)
+        self.grid_view.setMinimumWidth(303)
         self.grid_view.valueChanged.connect(lambda value: setattr(self, value, getattr(self.grid_view, value)))
         self.grid_plan.path.toggled.connect(self.grid_view.toggle_path_visibility)
 
         self.fov_position = fov_position
         self.fov_dimensions = fov_dimensions
+        self.coordinate_plane = coordinate_plane
+        self.planValueChanged = self.grid_plan.valueChanged
+        self.viewValueChanged = self.grid_view.valueChanged
+        self.fovMoved = self.grid_view.fovMoved
 
         layout = QHBoxLayout()
         layout.addWidget(self.grid_plan)
@@ -37,6 +45,7 @@ class GridWidget(QMainWindow):
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+
 
     @property
     def fov_position(self):
@@ -49,6 +58,7 @@ class GridWidget(QMainWindow):
             self.grid_view.fov_position = value
         if self.grid_plan.fov_position != value:
             self.grid_plan.fov_position = value
+
     @property
     def fov_dimensions(self):
         return self._fov_dimensions
@@ -61,38 +71,39 @@ class GridWidget(QMainWindow):
         if self.grid_plan.fov_dimensions != value:
             self.grid_plan.fov_dimensions = value
 
+
 class GridPlanWidget(GridPlanWidgetMMCore):
     """Widget to plan out grid. Pymmcore already has a great one"""
 
-    def __init__(self, x_limits_um: [float] = None, y_limits_um: [float] = None):
+    def __init__(self, x_limits: [float] = None, y_limits: [float] = None, unit: str = 'um'):
         super().__init__()
         # TODO: should these be properties? or should we assume they stay constant?
 
-        self._x_limits_um = x_limits_um or [float('-inf'), float('inf')]
-        self._y_limits_um = y_limits_um or [float('-inf'), float('inf')]
-        self._x_limits_um.sort()
-        self._y_limits_um.sort()
+        self._x_limits = x_limits or [float('-inf'), float('inf')]
+        self._y_limits = y_limits or [float('-inf'), float('inf')]
+        self._x_limits.sort()
+        self._y_limits.sort()
 
         self._fov_position = (0.0, 0.0)
         self._grid_position = (0.0, 0.0)
 
         # customize area widgets
-        self.area_width.setRange(0.01, self._x_limits_um[-1] - self._x_limits_um[0])
-        self.area_width.setSuffix(" um")
-        self.area_height.setRange(0.01, self._y_limits_um[-1] - self._y_limits_um[0])
-        self.area_height.setSuffix(" um")
+        self.area_width.setRange(0.01, self._x_limits[-1] - self._x_limits[0])
+        self.area_width.setSuffix(f" {unit}")
+        self.area_height.setRange(0.01, self._y_limits[-1] - self._y_limits[0])
+        self.area_height.setSuffix(f" {unit}")
 
         # customize bound widgets
-        self.left.setRange(self._x_limits_um[0], self._x_limits_um[-1])
-        self.left.setSuffix(" um")
-        self.right.setRange(self._x_limits_um[0], self._x_limits_um[-1])
-        self.right.setSuffix(" um")
-        self.top.setRange(self._y_limits_um[0], self._y_limits_um[-1])
-        self.top.setSuffix(" um")
-        self.bottom.setRange(self._y_limits_um[0], self._y_limits_um[-1])
-        self.bottom.setSuffix(" um")
+        self.left.setRange(self._x_limits[0], self._x_limits[-1])
+        self.left.setSuffix(f" {unit}")
+        self.right.setRange(self._x_limits[0], self._x_limits[-1])
+        self.right.setSuffix(f" {unit}")
+        self.top.setRange(self._y_limits[0], self._y_limits[-1])
+        self.top.setSuffix(f" {unit}")
+        self.bottom.setRange(self._y_limits[0], self._y_limits[-1])
+        self.bottom.setSuffix(f" {unit}")
 
-        # TODO: Should these go here?
+        # TODO: Should these go here? Add fov dimension box?
         # Add extra checkboxes and inputs
         self.path = QCheckBox('Show Path')
         self.path.setChecked(True)
@@ -104,8 +115,8 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         self.grid_position_widgets = [QDoubleSpinBox(), QDoubleSpinBox()]
         for axis, box in zip(['x', 'y'], self.grid_position_widgets):
             box.setValue(self.grid_position[0])
-            box.setRange(*getattr(self, f'_{axis}_limits_um'))
-            box.setSuffix(" um")
+            box.setRange(*getattr(self, f'_{axis}_limits'))
+            box.setSuffix(f" {unit}")
 
             box.valueChanged.connect(lambda: setattr(self, 'grid_position', (self.grid_position_widgets[0].value(),
                                                                              self.grid_position_widgets[1].value())))
@@ -129,6 +140,7 @@ class GridPlanWidget(GridPlanWidgetMMCore):
 
         self.grid_position_widgets[0].setEnabled(enable)
         self.grid_position_widgets[1].setEnabled(enable)
+        self.relative_to.setDisabled(enable)
         if not enable:  # Graph is anchored
             self.grid_position = self.fov_position
 
@@ -199,22 +211,24 @@ class GridViewWidget(GLViewWidget):
     fov_position = SignalChangeVar()
     grid_coords = SignalChangeVar()
     valueChanged = Signal((str))
+    fovMoved = Signal((list))
 
     def __init__(self,
-                 coordinate_plane: tuple[str] = ('x', 'y'),
-                 fov_dimensions: tuple[float] = (1.0, 1.0),
-                 fov_position: tuple[float] = (0.0, 0.0),
+                 coordinate_plane: list[str] = ['x', 'y'],
+                 fov_dimensions: list[float] = [1.0, 1.0],
+                 fov_position: list[float] = [0.0, 0.0],
                  view_color: str = 'yellow'):
         """GLViewWidget to display proposed grid of acquisition
         :param coordinate_plane: coordinate plane displayed on widget.
         Needed to move stage to correct coordinate position?
-        :param fov_dimensions: dimenstions of field of view in coordinate plane
+        :param fov_dimensions: dimensions of field of view in coordinate plane
         :param fov_position: position of fov
         :param view_color: optional color of fov box"""
 
         super().__init__()
 
         # TODO: units? Checks?
+        self.coordinate_plane = coordinate_plane
         self.fov_dimensions = fov_dimensions
         self.fov_position = fov_position
         self.grid_coords = [(0, 0)]
@@ -246,9 +260,9 @@ class GridViewWidget(GLViewWidget):
         x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
-        point = GLScatterPlotItem(pos = (53.0, 39.5,0),
-                                  size = 50)
-        point.setData(pos=(53.0, 39.5,0), size=50, pxMode=False)
+        point = GLScatterPlotItem(pos=(53.0, 39.5, 0),
+                                  size=50)
+        point.setData(pos=(53.0, 39.5, 0), size=50, pxMode=False)
         self.addItem(point)
 
     def update_view(self, attribute_name):
@@ -311,9 +325,9 @@ class GridViewWidget(GLViewWidget):
         max_index = distances.index(max(distances, key=abs))
         furthest_tile = {'x': self.grid_coords[max_index][0],
                          'y': self.grid_coords[max_index][1]}
-        # if fov_position is within grid or farthest distince is between grid tiles
+        # if fov_position is within grid or farthest distance is between grid tiles
         if extrema['x_min'] <= x_pos <= extrema['x_max'] or \
-                abs(furthest_tile['x']-x_pos)<abs(extrema['x_max']-extrema['x_min']):
+                abs(furthest_tile['x'] - x_pos) < abs(extrema['x_max'] - extrema['x_min']):
             x_center = ((extrema['x_min'] + extrema['x_max']) / 2) + x_fov / 2
             x_dist = ((extrema['x_max'] - extrema['x_min']) + (x_fov * 2)) / 2 * tan(radians(self.opts['fov']))
 
@@ -322,18 +336,17 @@ class GridViewWidget(GLViewWidget):
             x_dist = (abs(x_pos - furthest_tile['x']) + (x_fov * 2)) / 2 * tan(radians(self.opts['fov']))
 
         if extrema['y_min'] <= y_pos <= extrema['y_max'] or \
-                abs(furthest_tile['y']-y_pos)<abs(extrema['y_max']-extrema['y_min']):
+                abs(furthest_tile['y'] - y_pos) < abs(extrema['y_max'] - extrema['y_min']):
             y_center = ((extrema['y_min'] + extrema['y_max']) / 2) + y_fov / 2
             # View does not scale when changing vertical size of widget so for y_dist we need to take into account the
             # difference between the height and width
-            y_dist = ((extrema['y_max'] - extrema['y_min']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov']))\
-                     * (self.size().width() / self.size().height())
-            
-        else:
-            y_center = ((y_pos + furthest_tile['y']) / 2) + y_fov / 2
-            y_dist = (abs(y_pos - furthest_tile['y']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov']))\
+            y_dist = ((extrema['y_max'] - extrema['y_min']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov'])) \
                      * (self.size().width() / self.size().height())
 
+        else:
+            y_center = ((y_pos + furthest_tile['y']) / 2) + y_fov / 2
+            y_dist = (abs(y_pos - furthest_tile['y']) + (y_fov * 2)) / 2 * tan(radians(self.opts['fov'])) \
+                     * (self.size().width() / self.size().height())
 
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
         self.opts['center'] = QVector3D(
@@ -347,7 +360,7 @@ class GridViewWidget(GLViewWidget):
         msgBox.setIcon(QMessageBox.Question)
         msgBox.setText(f"Do you want to move the field of view from {self.fov_position} to"
                        f"{new_fov_pos}?")
-        msgBox.setWindowTitle("Movig FOV")
+        msgBox.setWindowTitle("Moving FOV")
         msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
 
         return msgBox.exec()
@@ -358,16 +371,18 @@ class GridViewWidget(GLViewWidget):
 
         if event.button() == Qt.LeftButton:
             # Translate mouseclick x, y into view widget x, y
-            x_dist = self.opts['distance']/tan(radians(self.opts['fov']))
-            y_dist = self.opts['distance']/tan(radians(self.opts['fov']))*(self.size().height()/self.size().width())
+            x_dist = self.opts['distance'] / tan(radians(self.opts['fov']))
+            y_dist = self.opts['distance'] / tan(radians(self.opts['fov'])) * (
+                    self.size().height() / self.size().width())
             x_scale = ((event.x() * 2 * x_dist) / self.size().width())
             y_scale = ((event.y() * 2 * y_dist) / self.size().height())
-            x = (self.opts['center'].x() - x_dist + x_scale)-.5 * self.fov_dimensions[0]
-            y = (self.opts['center'].y() + y_dist - y_scale)-.5 * self.fov_dimensions[1]
-            new_fov = (x, y)
+            x = (self.opts['center'].x() - x_dist + x_scale) - .5 * self.fov_dimensions[0]
+            y = (self.opts['center'].y() + y_dist - y_scale) - .5 * self.fov_dimensions[1]
+            new_fov = (round(x, 2), round(y, 2))
             return_value = self.move_fov_query(new_fov)
             if return_value == QMessageBox.Ok:
-                self.fov_position = new_fov # TODO: How to handle this with real stage
+                self.fov_position = new_fov  # TODO: How to handle this with real stage
+                self.fovMoved.emit(new_fov)
             else:
                 return
 

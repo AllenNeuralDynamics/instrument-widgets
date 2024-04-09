@@ -1,6 +1,6 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLScatterPlotItem
 from pymmcore_widgets import GridPlanWidget as GridPlanWidgetMMCore
-from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox, \
+from qtpy.QtWidgets import QSizePolicy, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox, \
     QMessageBox, QPushButton
 from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QColor, QMatrix4x4, QVector3D
@@ -9,10 +9,10 @@ from math import tan, radians, sqrt
 from typing import cast
 import useq
 
-class GridWidget(QMainWindow):
+class GridWidget:
     """Widget combining GridPlanWidget and GridViewWidget"""
 
-    def __init__(self, limits: {'x': [float('-inf'), float('inf')], 'y': [float('-inf'), float('inf')]},
+    def __init__(self, limits: {'x_limits': [float('-inf'), float('inf')], 'y_limits': [float('-inf'), float('inf')]},
                  coordinate_plane: list[str] = ['x', 'y'],
                  fov_dimensions: list[float] = [1.0, 1.0],
                  fov_position: list[float] = [0.0, 0.0],
@@ -20,15 +20,20 @@ class GridWidget(QMainWindow):
                  unit: str = 'um'):
         super().__init__()
 
-        self.grid_plan = GridPlanWidget(*limits.values(), unit)
-        self.grid_plan.setFixedWidth(self.grid_plan.sizeHint().width() + 30)  # Will take up whole widget if not set
-        self.grid_plan.setMinimumHeight(303)
+        self.grid_plan = GridPlanWidget(**limits, unit=unit)
+        self.grid_plan.setMaximumHeight(333)
+        self.grid_plan.setMaximumWidth(333)
+        self.grid_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+        self.grid_plan.show()
 
         self.grid_view = GridViewWidget(coordinate_plane, fov_dimensions, fov_position, view_color)
-        self.grid_view.setMinimumWidth(303)
         self.grid_view.valueChanged.connect(lambda value: setattr(self, value, getattr(self.grid_view, value)))
-        self.grid_plan.path.toggled.connect(self.grid_view.toggle_path_visibility)
+        self.grid_view.setMinimumHeight(333)
+        self.grid_view.setMinimumWidth(333)
+        self.grid_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.grid_view.show()
 
+        self.grid_plan.path.toggled.connect(self.grid_view.toggle_path_visibility)
         self.grid_plan.valueChanged.connect(lambda value: setattr(self.grid_view, 'grid_coords',
                                                                   self.grid_plan.tile_positions))
         # expose attributes from grid_plan and grid_view
@@ -39,13 +44,6 @@ class GridWidget(QMainWindow):
         self.viewValueChanged = self.grid_view.valueChanged
         self.fovMoved = self.grid_view.fovMoved
         self.fovStop = self.grid_plan.fovStop
-
-        layout = QHBoxLayout()
-        layout.addWidget(self.grid_plan)
-        layout.addWidget(self.grid_view)
-        central_widget = QWidget()
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
 
     @property
     def fov_position(self):
@@ -213,7 +211,7 @@ class GridPlanWidget(GridPlanWidgetMMCore):
                     for pos in self.value().iter_grid_positions()]
 
     def value(self):
-        """Overwriting value so Area mode set width and height in mm"""
+        """Overwriting value so Area mode doesn't multiply width and height by 1000"""
         # FIXME: I don't like overwriting this but I don't know what else to do
         over = self.overlap.value()
         _order = cast("OrderMode", self.order.currentEnum())

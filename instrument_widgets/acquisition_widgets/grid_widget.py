@@ -1,7 +1,7 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLScatterPlotItem
 from pymmcore_widgets import GridPlanWidget as GridPlanWidgetMMCore
 from qtpy.QtWidgets import QMainWindow, QHBoxLayout, QWidget, QVBoxLayout, QCheckBox, QDoubleSpinBox, \
-    QMessageBox, QScrollBar
+    QMessageBox, QPushButton
 from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QColor, QMatrix4x4, QVector3D
 import numpy as np
@@ -21,9 +21,6 @@ class GridWidget(QMainWindow):
         super().__init__()
 
         self.grid_plan = GridPlanWidget(*limits.values(), unit)
-        self.grid_plan.valueChanged.connect(lambda value: setattr(self.grid_view, 'grid_coords',
-                                                                  self.grid_plan.tile_positions))
-
         self.grid_plan.setFixedWidth(self.grid_plan.sizeHint().width() + 30)  # Will take up whole widget if not set
         self.grid_plan.setMinimumHeight(303)
 
@@ -31,13 +28,16 @@ class GridWidget(QMainWindow):
         self.grid_view.setMinimumWidth(303)
         self.grid_view.valueChanged.connect(lambda value: setattr(self, value, getattr(self.grid_view, value)))
         self.grid_plan.path.toggled.connect(self.grid_view.toggle_path_visibility)
-
+        self.grid_plan.valueChanged.connect(lambda value: setattr(self.grid_view, 'grid_coords',
+                                                                   self.grid_plan.tile_positions))
+        # expose attributes from grid_plan and grid_view
         self.fov_position = fov_position
         self.fov_dimensions = fov_dimensions
         self.coordinate_plane = coordinate_plane
         self.planValueChanged = self.grid_plan.valueChanged
         self.viewValueChanged = self.grid_view.valueChanged
         self.fovMoved = self.grid_view.fovMoved
+        self.fovStop = self.grid_plan.fovStop
 
         layout = QHBoxLayout()
         layout.addWidget(self.grid_plan)
@@ -74,6 +74,8 @@ class GridWidget(QMainWindow):
 
 class GridPlanWidget(GridPlanWidgetMMCore):
     """Widget to plan out grid. Pymmcore already has a great one"""
+
+    fovStop = Signal()
 
     def __init__(self, x_limits: [float] = None, y_limits: [float] = None, unit: str = 'um'):
         super().__init__()
@@ -115,13 +117,19 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         self.grid_position_widgets = [QDoubleSpinBox(), QDoubleSpinBox()]
         for axis, box in zip(['x', 'y'], self.grid_position_widgets):
             box.setValue(self.grid_position[0])
-            box.setRange(*getattr(self, f'_{axis}_limits'))
+            limits = getattr(self, f'_{axis}_limits')
+            dec = len(str(limits[0])[str(limits[0]).index('.') + 1:]) if '.' in str(limits[0]) else 0
+            box.setDecimals(dec)
+            box.setRange(*limits)
             box.setSuffix(f" {unit}")
 
             box.valueChanged.connect(lambda: setattr(self, 'grid_position', (self.grid_position_widgets[0].value(),
                                                                              self.grid_position_widgets[1].value())))
             box.valueChanged.connect(self._on_change)
             box.setDisabled(True)
+
+        self.stop_stage = QPushButton("HALT FOV")
+        self.stop_stage.clicked.connect(lambda: self.fovStop.emit())
 
         pos_layout.addWidget(self.anchor)
         pos_layout.addWidget(self.grid_position_widgets[0])
@@ -130,6 +138,7 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         layout = QVBoxLayout()
         layout.addWidget(self.path)
         layout.addLayout(pos_layout)
+        layout.addWidget(self.stop_stage)
         widget = QWidget()
         widget.setLayout(layout)
 
@@ -260,11 +269,6 @@ class GridViewWidget(GLViewWidget):
         x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
-        point = GLScatterPlotItem(pos=(53.0, 39.5, 0),
-                                  size=50)
-        point.setData(pos=(53.0, 39.5, 0), size=50, pxMode=False)
-        self.addItem(point)
-
     def update_view(self, attribute_name):
         """Update attributes of grid
         :param attribute_name: name of attribute to update"""
@@ -378,7 +382,7 @@ class GridViewWidget(GLViewWidget):
             y_scale = ((event.y() * 2 * y_dist) / self.size().height())
             x = (self.opts['center'].x() - x_dist + x_scale) - .5 * self.fov_dimensions[0]
             y = (self.opts['center'].y() + y_dist - y_scale) - .5 * self.fov_dimensions[1]
-            new_fov = (round(x, 2), round(y, 2))
+            new_fov = [x, y]
             return_value = self.move_fov_query(new_fov)
             if return_value == QMessageBox.Ok:
                 self.fov_position = new_fov  # TODO: How to handle this with real stage

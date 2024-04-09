@@ -6,8 +6,8 @@ from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QColor, QMatrix4x4, QVector3D
 import numpy as np
 from math import tan, radians, sqrt
-from instrument_widgets.miscellaneous_widgets.q_scrollable_line_edit import QScrollableLineEdit
-
+from typing import cast
+import useq
 
 class GridWidget(QMainWindow):
     """Widget combining GridPlanWidget and GridViewWidget"""
@@ -28,8 +28,9 @@ class GridWidget(QMainWindow):
         self.grid_view.setMinimumWidth(303)
         self.grid_view.valueChanged.connect(lambda value: setattr(self, value, getattr(self.grid_view, value)))
         self.grid_plan.path.toggled.connect(self.grid_view.toggle_path_visibility)
+
         self.grid_plan.valueChanged.connect(lambda value: setattr(self.grid_view, 'grid_coords',
-                                                                   self.grid_plan.tile_positions))
+                                                                  self.grid_plan.tile_positions))
         # expose attributes from grid_plan and grid_view
         self.fov_position = fov_position
         self.fov_dimensions = fov_dimensions
@@ -45,7 +46,6 @@ class GridWidget(QMainWindow):
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
-
 
     @property
     def fov_position(self):
@@ -70,6 +70,18 @@ class GridWidget(QMainWindow):
             self.grid_view.fov_dimensions = value
         if self.grid_plan.fov_dimensions != value:
             self.grid_plan.fov_dimensions = value
+
+    def tile_configuration(self):
+        """Provide tile configuration in configuration a voxel acquisition is expecting.
+        grid_plan tiles are in order of acquisition"""
+
+        tiles = []
+        for tile, specs in zip(self.grid_plan.tile_positions, self.grid_plan.value().iter_grid_positions()):
+            tiles.append({
+                'tile_number': {self.coordinate_plane[0]: specs.row, self.coordinate_plane[1]: specs.col},
+                'position_mm': {axis: coord for axis, coord in zip(self.coordinate_plane, tile)}
+            })
+        return tiles
 
 
 class GridPlanWidget(GridPlanWidgetMMCore):
@@ -155,12 +167,14 @@ class GridPlanWidget(GridPlanWidgetMMCore):
 
     @property
     def fov_dimensions(self):
-        return (self.fovWidth(), self.fovHeight())
+        return [self.fovWidth(), self.fovHeight()]
 
     @fov_dimensions.setter
     def fov_dimensions(self, value):
         self.setFovWidth(value[0])
+        self.area_width.setSingleStep(value[0])
         self.setFovHeight(value[1])
+        self.area_height.setSingleStep(value[1])
 
     @property
     def fov_position(self):
@@ -197,6 +211,41 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         else:
             return [(pos.x, pos.y)
                     for pos in self.value().iter_grid_positions()]
+
+    def value(self):
+        """Overwriting value so Area mode set width and height in mm"""
+        # FIXME: I don't like overwriting this but I don't know what else to do
+        over = self.overlap.value()
+        _order = cast("OrderMode", self.order.currentEnum())
+        common = {
+            "overlap": (over, over),
+            "mode": _order.value,
+            "fov_width": self._fov_width,
+            "fov_height": self._fov_height,
+        }
+        if self._mode.value == 'number':
+            return useq.GridRowsColumns(
+                rows=self.rows.value(),
+                columns=self.columns.value(),
+                relative_to=cast("RelativeTo", self.relative_to.currentEnum()).value,
+                **common,
+            )
+        elif self._mode.value == 'bounds':
+            return useq.GridFromEdges(
+                top=self.top.value(),
+                left=self.left.value(),
+                bottom=self.bottom.value(),
+                right=self.right.value(),
+                **common,
+            )
+        elif self._mode.value == 'area':
+            return useq.GridWidthHeight(
+                width=self.area_width.value(),
+                height=self.area_height.value(),
+                relative_to=cast("RelativeTo", self.relative_to.currentEnum()).value,
+                **common,
+            )
+        raise NotImplementedError
 
 
 # TODO: Use this else where to. Consider moving it so we don't have to copy paste?
@@ -385,7 +434,7 @@ class GridViewWidget(GLViewWidget):
             new_fov = [x, y]
             return_value = self.move_fov_query(new_fov)
             if return_value == QMessageBox.Ok:
-                self.fov_position = new_fov  # TODO: How to handle this with real stage
+                self.fov_position = new_fov
                 self.fovMoved.emit(new_fov)
             else:
                 return

@@ -14,7 +14,7 @@ import enum
 class GridPlanWidget(GridPlanWidgetMMCore):
     """Widget to plan out grid. Pymmcore already has a great one"""
 
-    fovStop = Signal()
+    clicked = Signal()
 
     def __init__(self, x_limits: [float] = None, y_limits: [float] = None, unit: str = 'um'):
         """:param x_limits: list containing max and min values of x dimension
@@ -29,7 +29,6 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         self._x_limits.sort()
         self._y_limits.sort()
 
-        self._fov_position = (0.0, 0.0)
         self._grid_position = (0.0, 0.0)
 
         # customize area widgets
@@ -48,54 +47,6 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         self.bottom.setRange(self._y_limits[0], self._y_limits[-1])
         self.bottom.setSuffix(f" {unit}")
 
-        # TODO: Should these go here? Add fov dimension box?
-        # Add extra checkboxes and inputs
-        self.path = QCheckBox('Show Path')
-        self.path.setChecked(True)
-
-        self.anchor = QCheckBox('Anchor Grid:')
-        self.anchor.toggled.connect(self.toggle_grid_position)
-
-        pos_layout = QHBoxLayout()
-        self.grid_position_widgets = [QDoubleSpinBox(), QDoubleSpinBox()]
-        for axis, box in zip(['x', 'y'], self.grid_position_widgets):
-            box.setValue(self.grid_position[0])
-            limits = getattr(self, f'_{axis}_limits')
-            dec = len(str(limits[0])[str(limits[0]).index('.') + 1:]) if '.' in str(limits[0]) else 0
-            box.setDecimals(dec)
-            box.setRange(*limits)
-            box.setSuffix(f" {unit}")
-
-            box.valueChanged.connect(lambda: setattr(self, 'grid_position', (self.grid_position_widgets[0].value(),
-                                                                             self.grid_position_widgets[1].value())))
-            box.valueChanged.connect(self._on_change)
-            box.setDisabled(True)
-
-        self.stop_stage = QPushButton("HALT FOV")
-        self.stop_stage.clicked.connect(lambda: self.fovStop.emit())
-
-        pos_layout.addWidget(self.anchor)
-        pos_layout.addWidget(self.grid_position_widgets[0])
-        pos_layout.addWidget(self.grid_position_widgets[1])
-
-        layout = QVBoxLayout()
-        layout.addWidget(self.path)
-        layout.addLayout(pos_layout)
-        layout.addWidget(self.stop_stage)
-        widget = QWidget()
-        widget.setLayout(layout)
-
-        self.widget().layout().children()[-1].children()[0].addRow(widget)
-
-    def toggle_grid_position(self, enable):
-        """If grid is anchored, allow user to input grid position"""
-
-        self.grid_position_widgets[0].setEnabled(enable)
-        self.grid_position_widgets[1].setEnabled(enable)
-        self.relative_to.setDisabled(enable)
-        if not enable:  # Graph is anchored
-            self.grid_position = self.fov_position
-
     @property
     def fov_dimensions(self):
         return [self.fovWidth(), self.fovHeight()]
@@ -108,28 +59,13 @@ class GridPlanWidget(GridPlanWidgetMMCore):
         self.area_height.setSingleStep(value[1])
 
     @property
-    def fov_position(self):
-        return self._fov_position
-
-    @fov_position.setter
-    def fov_position(self, value):
-        self._fov_position = value
-        if not self.anchor.isChecked():
-            self.grid_position_widgets[0].setValue(value[0])
-            self.grid_position_widgets[1].setValue(value[1])
-        self._on_change()
-
-    @property
     def grid_position(self):
         return self._grid_position
 
     @grid_position.setter
     def grid_position(self, value):
         self._grid_position = value
-        if (float(self.grid_position_widgets[0].value()), float(self.grid_position_widgets[1].value())) != value:
-            self.grid_position_widgets[0].setValue(value[0])
-            self.grid_position_widgets[1].setValue(value[1])
-            self._on_change()
+        self._on_change()
 
     @property
     def tile_positions(self):
@@ -176,3 +112,8 @@ class GridPlanWidget(GridPlanWidgetMMCore):
                 **common,
             )
         raise NotImplementedError
+
+    def mousePressEvent(self, a0) -> None:
+        """overwrite to emit a clicked signal"""
+        self.clicked.emit()
+        super().mousePressEvent(a0)

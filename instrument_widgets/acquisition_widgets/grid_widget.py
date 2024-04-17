@@ -11,7 +11,7 @@ from instrument_widgets.acquisition_widgets.z_plan_widget import ZPlanWidget
 import ast
 
 
-class GridWidget:
+class GridWidget(QWidget):
     """Widget combining GridPlanWidget, ZPlanWidget, and GridViewWidget. Note that the x and y refer to the tiling
     dimensions and z is the scanning dimension """
 
@@ -40,9 +40,9 @@ class GridWidget:
 
         # setup grid plan widget
         self.grid_plan = GridPlanWidget(limits[0], limits[1], unit=unit)
-        self.grid_plan.setMaximumHeight(333)
-        self.grid_plan.setMaximumWidth(333)
-        self.grid_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
+        self.grid_plan.setMinimumHeight(333)
+        self.grid_plan.setMinimumWidth(340)
+        self.grid_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.grid_plan.setWindowTitle('Grid Plan')
         self.grid_plan.valueChanged.connect(self.z_plan_construction)
         self.grid_plan.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
@@ -137,10 +137,8 @@ class GridWidget:
     def fov_position(self, value):
         self._fov_position = value
         if not self.anchor.isChecked():
-            self.grid_plan.blockSignals(True)   # stop view from switching plane if fov is moved
             self.grid_position_widgets[0].setValue(value[0])
             self.grid_position_widgets[1].setValue(value[1])
-            self.grid_plan.blockSignals(False)
         if self.grid_view.fov_position != value:
             self.grid_view.fov_position = value
 
@@ -183,10 +181,10 @@ class GridWidget:
                         z = self.create_z_plan_widget()
                         z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
                         self.z_plan_table.setCellWidget(i, j, z)
+                        self.z_plan_table.setRowHeight(i, 175)
             else:  # rows deleted
                 for i in range(old_row, value.rows, -1):
                     self.z_plan_table.removeRow(i)
-            self.z_plan_table.setRowHeight(value.rows - 1, 125)
 
         if old_col != value.columns:
             difference = value.columns - old_col
@@ -196,10 +194,11 @@ class GridWidget:
                         z = self.create_z_plan_widget()
                         z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
                         self.z_plan_table.setCellWidget(i, j, z)
+                        self.z_plan_table.setColumnWidth(j, 250)
             else:  # cols deleted
                 for i in range(old_col, value.columns, -1):
                     self.z_plan_table.removeColumn(i)
-            self.z_plan_table.setColumnWidth(value.columns - 1, 250)
+
 
         self.toggle_apply_all(self.apply_all.isChecked())
         self.grid_coord_construction()
@@ -232,22 +231,25 @@ class GridWidget:
                 z = self.z_plan_table.cellWidget(0, 0).value()
                 # set tile_z_dimension first so grid can render properly
                 self.grid_view.tile_z_dimensions = [z[-1] - z[0]] * len(self.grid_plan.tile_positions)
+                self.grid_view.tile_visibility = [True] * len(self.grid_plan.tile_positions)
                 self.grid_view.grid_coords = [(x, y, z[0]) for x, y in self.grid_plan.tile_positions]
             else:
                 tile_z_dimensions = []
                 tile_xyz = []
+                tile_visibility = []
                 tile_xy = self.grid_plan.tile_positions
                 for i, tile in enumerate(self.grid_plan.value().iter_grid_positions()):  # need to match row, col
                     x, y = tile_xy[i]
                     z = self.z_plan_table.cellWidget(tile.row, tile.col).value()
+                    tile_xyz.append((x, y, z[0]))
+                    tile_z_dimensions.append(z[-1] - z[0])
                     if not self.z_plan_table.cellWidget(tile.row, tile.col).hidden:
-                        tile_xyz.append((x, y, z[0]))
-                        tile_z_dimensions.append(z[-1] - z[0])
+                        tile_visibility.append(True)
                     else:
-                        tile_xyz.append((0, 0, 0))
-                        tile_z_dimensions.append(0)
+                        tile_visibility.append(False)
                 self.grid_view.tile_z_dimensions = tile_z_dimensions
                 self.grid_view.grid_coords = tile_xyz
+                self.grid_view.tile_visibility = tile_visibility
 
     def toggle_apply_all(self, checked):
         """If apply all is toggled, disable/enable tab widget accordingly and reconstruct gui coords"""
@@ -319,6 +321,7 @@ class GridViewWidget(GLViewWidget):
         self.tile_z_dimensions = [0.0]
         self.grid_coords = [(0, 0, 0)]
         self.grid_BoxItems = []
+        self.tile_visibility = []
         self.grid_LinePlotItem = GLLinePlotItem()
         self.addItem(self.grid_LinePlotItem)
 
@@ -353,7 +356,6 @@ class GridViewWidget(GLViewWidget):
         if attribute_name == 'fov_dimensions':
             self.fov_view.setSize(*self.fov_dimensions, 0.0)
         elif attribute_name == 'fov_position':
-            print('moving fov to ', self.fov_position)
             self.fov_view.setTransform(QMatrix4x4(1, 0, 0, self.fov_position[0],
                                                   0, 1, 0, self.fov_position[1],
                                                   0, 0, 1, self.fov_position[2],
@@ -369,7 +371,7 @@ class GridViewWidget(GLViewWidget):
         for box in self.grid_BoxItems:
             self.removeItem(box)
         self.grid_BoxItems = []
-        for coord, tile_dimension in zip(self.grid_coords, self.tile_z_dimensions):
+        for coord, tile_dimension, visible in zip(self.grid_coords, self.tile_z_dimensions, self.tile_visibility):
             x, y, z = coord
             box = GLBoxItem()
             box.setSize(*self.fov_dimensions, tile_dimension)
@@ -377,6 +379,8 @@ class GridViewWidget(GLViewWidget):
                                         0, 1, 0, y,
                                         0, 0, 1, z,
                                         0, 0, 0, 1))
+            box.setColor('white')
+            box.setVisible(visible)
             self.grid_BoxItems.append(box)
             self.addItem(box)
 
@@ -503,8 +507,9 @@ class GridViewWidget(GLViewWidget):
             return_value = self.move_fov_query([new_pos['x'], new_pos['y'], new_pos['z']])
             if return_value == QMessageBox.Ok:
                 self.fov_position = [new_pos['x'], new_pos['y'], new_pos['z']]
+                self.grid_plane = plane     # make sure grid plane remains the same
                 self.fovMoved.emit(new_pos)
-                print(self.fov_position)
+
             else:
                 return
 

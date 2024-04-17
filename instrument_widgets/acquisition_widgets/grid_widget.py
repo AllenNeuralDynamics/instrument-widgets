@@ -61,7 +61,7 @@ class GridWidget:
         checkbox_layout.addWidget(self.apply_all)
 
         self.view_plane = QButtonGroup(self.z_grid_plan)
-        for view in ['(x, z)', '(z, y)']:
+        for view in ['(x, y)', '(x, z)', '(z, y)']:
             button = QRadioButton(view)
             button.clicked.connect((lambda clicked, b=button: setattr(self.grid_view, 'grid_plane',
                                                                       tuple(x for x in b.text() if x.isalpha()))))
@@ -137,8 +137,10 @@ class GridWidget:
     def fov_position(self, value):
         self._fov_position = value
         if not self.anchor.isChecked():
+            self.grid_plan.blockSignals(True)   # stop view from switching plane if fov is moved
             self.grid_position_widgets[0].setValue(value[0])
             self.grid_position_widgets[1].setValue(value[1])
+            self.grid_plan.blockSignals(False)
         if self.grid_view.fov_position != value:
             self.grid_view.fov_position = value
 
@@ -341,7 +343,7 @@ class GridViewWidget(GLViewWidget):
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
         axis = GLAxisItem()
-        axis.setSize(0, 50, 50)
+        axis.setSize(50, 0, 50)
         self.addItem(axis)
 
     def update_view(self, attribute_name):
@@ -351,6 +353,7 @@ class GridViewWidget(GLViewWidget):
         if attribute_name == 'fov_dimensions':
             self.fov_view.setSize(*self.fov_dimensions, 0.0)
         elif attribute_name == 'fov_position':
+            print('moving fov to ', self.fov_position)
             self.fov_view.setTransform(QMatrix4x4(1, 0, 0, self.fov_position[0],
                                                   0, 1, 0, self.fov_position[1],
                                                   0, 0, 1, self.fov_position[2],
@@ -404,7 +407,7 @@ class GridViewWidget(GLViewWidget):
         elif plane == ('z', 'y'):
             self.opts['rotation'] = QQuaternion(0.7, 0, 0.7, 0.0)
         elif plane == ('x', 'z'):
-            self.opts['rotation'] = QQuaternion(.7, .7, 0, 0)
+            self.opts['rotation'] = QQuaternion(-.7, .7, 0, 0)
 
         extrema = {'x_min': min([x for x, y, z in coords]), 'x_max': max([x for x, y, z in coords]),
                    'y_min': min([y for x, y, z in coords]), 'y_max': max([y for x, y, z in coords]),
@@ -462,7 +465,7 @@ class GridViewWidget(GLViewWidget):
         """Message box asking if user wants to move fov position"""
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Question)
-        msgBox.setText(f"Do you want to move the field of view from {self.fov_position} to"
+        msgBox.setText(f"Do you want to move the field of view from {[round(x, 2) for x in self.fov_position]} to"
                        f"{[round(x, 2) for x in new_fov_pos]}?")
         msgBox.setWindowTitle("Moving FOV")
         msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
@@ -490,13 +493,18 @@ class GridViewWidget(GLViewWidget):
             other_dim = [dim for dim in transform_dict if dim not in plane][0]
             transform = [transform_dict[plane[0]], transform_dict[plane[1]], transform_dict[other_dim]]
 
-            new_pos = {transform[0]: (self.opts['center'].x() - horz_dist + horz_scale) - .5 * fov[transform[0]],
-                       transform[1]: (self.opts['center'].y() + vert_dist - vert_scale) - .5 * fov[transform[1]],
+            center = {'x': self.opts['center'].x(), 'y': self.opts['center'].y(), 'z': self.opts['center'].z()}
+            h_ax = self.grid_plane[0]
+            v_ax = self.grid_plane[1]
+
+            new_pos = {transform[0]: (center[h_ax] - horz_dist + horz_scale) - .5 * fov[transform[0]],
+                       transform[1]: (center[v_ax] + vert_dist - vert_scale) - .5 * fov[transform[1]],
                        transform[2]: pos[transform[2]]}
             return_value = self.move_fov_query([new_pos['x'], new_pos['y'], new_pos['z']])
             if return_value == QMessageBox.Ok:
                 self.fov_position = [new_pos['x'], new_pos['y'], new_pos['z']]
                 self.fovMoved.emit(new_pos)
+                print(self.fov_position)
             else:
                 return
 

@@ -1,12 +1,14 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLAxisItem
 from qtpy.QtWidgets import QSizePolicy, QWidget, QVBoxLayout, QCheckBox, \
-    QMessageBox, QApplication, QPushButton, QDoubleSpinBox, QGridLayout, QTableWidget
+    QMessageBox, QApplication, QPushButton, QDoubleSpinBox, QGridLayout, QTableWidget, QButtonGroup, QRadioButton, \
+    QHBoxLayout
 from qtpy.QtCore import Signal, Qt
-from qtpy.QtGui import QColor, QMatrix4x4, QVector3D
+from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QQuaternion
 import numpy as np
 from math import tan, radians, sqrt
 from instrument_widgets.acquisition_widgets.grid_plan_widget import GridPlanWidget
 from instrument_widgets.acquisition_widgets.z_plan_widget import ZPlanWidget
+import ast
 
 
 class GridWidget:
@@ -41,7 +43,7 @@ class GridWidget:
         self.grid_plan.setMaximumHeight(333)
         self.grid_plan.setMaximumWidth(333)
         self.grid_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum)
-        self.grid_plan.setWindowTitle('X Y Plan')
+        self.grid_plan.setWindowTitle('Grid Plan')
         self.grid_plan.valueChanged.connect(self.z_plan_construction)
         self.grid_plan.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
         self.grid_plan.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
@@ -50,16 +52,28 @@ class GridWidget:
         # setup z plan widget
         self.z_grid_plan = QWidget()
         self.z_plan_table = QTableWidget()
+
+        checkbox_layout = QHBoxLayout()
         self.apply_all = QCheckBox('Apply to All')
         self.apply_all.toggled.connect(self.toggle_apply_all)
         self.apply_all.toggled.connect(self.grid_coord_construction)
         self.apply_all.setChecked(True)
+        checkbox_layout.addWidget(self.apply_all)
+
+        self.view_plane = QButtonGroup(self.z_grid_plan)
+        for view in ['(x, z)', '(z, y)']:
+            button = QRadioButton(view)
+            button.clicked.connect((lambda clicked, b=button: setattr(self.grid_view, 'grid_plane',
+                                                                      tuple(x for x in b.text() if x.isalpha()))))
+            self.view_plane.addButton(button)
+            checkbox_layout.addWidget(button)
+            button.setChecked(True)
 
         layout = QVBoxLayout()
         layout.addWidget(self.z_plan_table)
-        layout.addWidget(self.apply_all)
+        layout.addLayout(checkbox_layout)
         self.z_grid_plan.setLayout(layout)
-        self.z_grid_plan.setWindowTitle('Z Plan')
+        self.z_grid_plan.setWindowTitle('Tiling Plan')
         self.z_grid_plan.show()
 
         # Add extra checkboxes/inputs/buttons to customize grid
@@ -77,7 +91,7 @@ class GridWidget:
         self.grid_position_widgets = [QDoubleSpinBox(), QDoubleSpinBox()]
         for i, axis, box in zip(range(1, 3), coordinate_plane, self.grid_position_widgets):
             box.setValue(fov_position[i - 1])
-            limit = limits[i-1]
+            limit = limits[i - 1]
             dec = len(str(limit[0])[str(limit[0]).index('.') + 1:]) if '.' in str(limit[0]) else 0
             box.setDecimals(dec)
             box.setRange(*limit)
@@ -164,10 +178,8 @@ class GridWidget:
             if difference > 0:  # rows added
                 for i in range(old_row, value.rows, 1):
                     for j in range(value.columns):
-                        z = ZPlanWidget(self.limits[2], self.unit)
-                        z.valueChanged.connect(self.grid_coord_construction)
-                        z.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'z')))
-                        z.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'z')))
+                        z = self.create_z_plan_widget()
+                        z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
                         self.z_plan_table.setCellWidget(i, j, z)
             else:  # rows deleted
                 for i in range(old_row, value.rows, -1):
@@ -179,10 +191,8 @@ class GridWidget:
             if difference > 0:  # cols added
                 for i in range(value.rows):
                     for j in range(old_col, value.columns, 1):
-                        z = ZPlanWidget(self.limits[2], self.unit)
-                        z.valueChanged.connect(self.grid_coord_construction)
-                        z.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'z')))
-                        z.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'z')))
+                        z = self.create_z_plan_widget()
+                        z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
                         self.z_plan_table.setCellWidget(i, j, z)
             else:  # cols deleted
                 for i in range(old_col, value.columns, -1):
@@ -191,6 +201,26 @@ class GridWidget:
 
         self.toggle_apply_all(self.apply_all.isChecked())
         self.grid_coord_construction()
+
+    def create_z_plan_widget(self):
+        """Function to create and connect ZPlanWidget"""
+        z = ZPlanWidget(self.limits[2], self.unit)
+        z.valueChanged.connect(self.grid_coord_construction)
+        # turn checked button text into tuple
+        z.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane',
+                                               tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
+        z.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane',
+                                          tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
+        return z
+
+    def create_hide_widget(self, z):
+        """Create checkbox to hide ZPlanWidget
+        :param z: correlating z widget to hide"""
+
+        hide = QCheckBox('Hide')
+        hide.toggled.connect(lambda checked: setattr(z, 'hidden', checked))
+        hide.toggled.connect(self.grid_coord_construction)
+        return hide
 
     def grid_coord_construction(self, value=None):
         """Create current list of x,y,z of planned grid"""
@@ -201,7 +231,6 @@ class GridWidget:
                 # set tile_z_dimension first so grid can render properly
                 self.grid_view.tile_z_dimensions = [z[-1] - z[0]] * len(self.grid_plan.tile_positions)
                 self.grid_view.grid_coords = [(x, y, z[0]) for x, y in self.grid_plan.tile_positions]
-
             else:
                 tile_z_dimensions = []
                 tile_xyz = []
@@ -209,8 +238,12 @@ class GridWidget:
                 for i, tile in enumerate(self.grid_plan.value().iter_grid_positions()):  # need to match row, col
                     x, y = tile_xy[i]
                     z = self.z_plan_table.cellWidget(tile.row, tile.col).value()
-                    tile_xyz.append((x, y, z[0]))
-                    tile_z_dimensions.append(z[-1] - z[0])
+                    if not self.z_plan_table.cellWidget(tile.row, tile.col).hidden:
+                        tile_xyz.append((x, y, z[0]))
+                        tile_z_dimensions.append(z[-1] - z[0])
+                    else:
+                        tile_xyz.append((0, 0, 0))
+                        tile_z_dimensions.append(0)
                 self.grid_view.tile_z_dimensions = tile_z_dimensions
                 self.grid_view.grid_coords = tile_xyz
 
@@ -274,7 +307,7 @@ class GridViewWidget(GLViewWidget):
         :param fov_position: position of fov
         :param view_color: optional color of fov box"""
 
-        super().__init__()
+        super().__init__(rotationMethod='quaternion')
 
         # TODO: units? Checks?
         self.coordinate_plane = coordinate_plane
@@ -296,10 +329,6 @@ class GridViewWidget(GLViewWidget):
                                               0, 0, 0, 1))
         self.addItem(self.fov_view)
 
-        # Correctly set view of graph
-        self.opts['azimuth'] = 270
-        self.opts['elevation'] = 90
-
         self.valueChanged[str].connect(self.update_view)
         self.resized.connect(self._update_opts)
 
@@ -312,7 +341,7 @@ class GridViewWidget(GLViewWidget):
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
         axis = GLAxisItem()
-        axis.setSize(50, 50, 50)
+        axis.setSize(0, 50, 50)
         self.addItem(axis)
 
     def update_view(self, attribute_name):
@@ -364,16 +393,18 @@ class GridViewWidget(GLViewWidget):
         """Update view of widget. Note that x/y notation refers to horizontal/vertical dimensions of grid view"""
 
         plane = self.grid_plane
-        coords = self.grid_coords
-
+        # take into account end of tile and account for difference in size if z included in view
+        coords = self.grid_coords if plane not in [('z', 'y'), ('x', 'z')] else self.grid_coords + \
+                                                                                [(axis[0], axis[1], axis[2] + size) for
+                                                                                 axis, size in
+                                                                                 zip(self.grid_coords,
+                                                                                     self.tile_z_dimensions)]
         if plane == ('x', 'y'):
-            self.opts['elevation'] = 90
-        elif plane == ('x', 'z') or plane == ('y', 'z'):
-            self.opts['elevation'] = 0
-            # take into account end of tile and account for difference in size
-            coords = self.grid_coords + \
-                     [(axis[0], axis[1], axis[2] + size) for axis, size in
-                      zip(self.grid_coords, self.tile_z_dimensions)]
+            self.opts['rotation'] = QQuaternion(-1, 0, 0, 0)
+        elif plane == ('z', 'y'):
+            self.opts['rotation'] = QQuaternion(0.7, 0, 0.7, 0.0)
+        elif plane == ('x', 'z'):
+            self.opts['rotation'] = QQuaternion(.7, .7, 0, 0)
 
         extrema = {'x_min': min([x for x, y, z in coords]), 'x_max': max([x for x, y, z in coords]),
                    'y_min': min([y for x, y, z in coords]), 'y_max': max([y for x, y, z in coords]),
@@ -383,7 +414,7 @@ class GridViewWidget(GLViewWidget):
         pos = {axis: dim for axis, dim in zip(['x', 'y', 'z'], self.fov_position)}
         distances = {'xy': [sqrt((pos[plane[0]] - x) ** 2 + (pos[plane[1]] - y) ** 2) for x, y, z in coords],
                      'xz': [sqrt((pos[plane[0]] - x) ** 2 + (pos[plane[1]] - z) ** 2) for x, y, z in coords],
-                     'yz': [sqrt((pos[plane[0]] - y) ** 2 + (pos[plane[1]] - z) ** 2) for x, y, z in coords]}
+                     'zy': [sqrt((pos[plane[0]] - z) ** 2 + (pos[plane[1]] - y) ** 2) for x, y, z in coords]}
         max_index = distances[''.join(plane)].index(max(distances[''.join(plane)], key=abs))
         furthest_tile = {'x': coords[max_index][0],
                          'y': coords[max_index][1],
@@ -391,7 +422,7 @@ class GridViewWidget(GLViewWidget):
         center = {}
 
         # if fov_position is within grid or farthest distance is between grid tiles
-        # Horizontal sizing 
+        # Horizontal sizing
         if extrema[f'{plane[0]}_min'] <= pos[plane[0]] <= extrema[f'{plane[0]}_max'] or \
                 abs(furthest_tile[plane[0]] - pos[plane[0]]) < abs(
             extrema[f'{plane[0]}_max'] - extrema[f'{plane[0]}_min']):
@@ -425,7 +456,6 @@ class GridViewWidget(GLViewWidget):
             center.get('x', 0),
             center.get('y', 0),
             center.get('z', 0))
-
         self.update()
 
     def move_fov_query(self, new_fov_pos):

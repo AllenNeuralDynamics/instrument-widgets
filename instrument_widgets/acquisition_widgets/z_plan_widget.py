@@ -3,6 +3,14 @@ from qtpy.QtWidgets import QWidget, QDoubleSpinBox, QLabel
 from qtpy.QtCore import Qt, Signal
 from math import ceil
 import useq
+import enum
+
+class Mode(enum.Enum):
+    """Recognized ZPlanWidget modes."""
+
+    TOP_BOTTOM = "top_bottom"
+    RANGE_AROUND = "range_around"
+    ABOVE_BELOW = "above_below"
 
 class ZPlanWidget(ZPlanWidgetMMCore):
     """Widget to plan out scanning dimension"""
@@ -14,6 +22,8 @@ class ZPlanWidget(ZPlanWidgetMMCore):
            :param unit: unit of all size values"""
 
         self.start = QDoubleSpinBox()
+        self.hidden = False
+
         super().__init__(parent)
 
         for i in range(self._grid_layout.count()):
@@ -27,19 +37,16 @@ class ZPlanWidget(ZPlanWidgetMMCore):
                 elif widget.text() == '\u00b5m':
                     widget.setText(unit)
 
-
-        # TODO: Hide direction label
+        self._range_readout.hide()
         self._bottom_to_top.hide()
         self._top_to_bottom.hide()
+        self.layout().children()[-1].itemAt(2).widget().hide()  # Direction label
 
         # Add start box
         self.start.valueChanged.connect(self._on_change)
         self.start.setRange(z_limits[0], z_limits[1])
         self._grid_layout.addWidget(QLabel("Start:"), 4, 0, Qt.AlignmentFlag.AlignRight)
         self._grid_layout.addWidget(self.start, 4, 1)
-
-        # self.bottom.disconnect()
-        # self.bottom.valueChanged.connect()
 
     def value(self):
         """Overwrite to change how z plan is calculated. Return a list of positions"""

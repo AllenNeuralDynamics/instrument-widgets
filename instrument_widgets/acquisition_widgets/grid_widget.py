@@ -41,12 +41,12 @@ class GridWidget(QWidget):
         # setup grid plan widget
         self.grid_plan = GridPlanWidget(limits[0], limits[1], unit=unit)
         self.grid_plan.setMinimumHeight(360)
-        self.grid_plan.setMinimumWidth(375)
+        self.grid_plan.setMinimumWidth(400)
         self.grid_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.grid_plan.setWindowTitle('Grid Plan')
         self.grid_plan.valueChanged.connect(self.z_plan_construction)
-        self.grid_plan.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
-        self.grid_plan.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
+        # self.grid_plan.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
+        # self.grid_plan.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
         self.grid_plan.show()
 
         # setup z plan widget
@@ -95,9 +95,9 @@ class GridWidget(QWidget):
             box.setDecimals(dec)
             box.setRange(*limit)
             box.setSuffix(f" {unit}")
-            box.valueChanged.connect(lambda: setattr(self, 'grid_position', (self.grid_position_widgets[0].value(),
+            box.valueChanged.connect(lambda: setattr(self, 'grid_position', [self.grid_position_widgets[0].value(),
                                                                              self.grid_position_widgets[1].value(),
-                                                                             self.grid_position_widgets[2].value())))
+                                                                             self.grid_position_widgets[2].value()]))
             box.setDisabled(True)
             layout.addWidget(box, 1, i + 1)
 
@@ -121,7 +121,6 @@ class GridWidget(QWidget):
         self.planValueChanged = self.grid_plan.valueChanged
         self.viewValueChanged = self.grid_view.valueChanged
         self.fovMoved = self.grid_view.fovMoved
-
         # Check and uncheck tiling anchor to disable first tile start box
         self.anchor_widgets[2].setChecked(True)
         self.anchor_widgets[2].setChecked(False)
@@ -221,10 +220,10 @@ class GridWidget(QWidget):
         z = ZPlanWidget(self.limits[2], self.unit)
         z.valueChanged.connect(self.grid_coord_construction)
         # turn checked button text into tuple
-        z.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane',
-                                               tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
-        z.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane',
-                                          tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
+        # z.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane',
+        #                                        tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
+        # z.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane',
+        #                                   tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
         return z
 
     def create_hide_widget(self, z):
@@ -359,9 +358,9 @@ class GridViewWidget(GLViewWidget):
         x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
-        axis = GLAxisItem()
-        axis.setSize(50, 0, 50)
-        self.addItem(axis)
+        # axis = GLAxisItem()
+        # axis.setSize(50, 0, 50)
+        # self.addItem(axis)
 
     def update_view(self, attribute_name):
         """Update attributes of grid
@@ -400,9 +399,9 @@ class GridViewWidget(GLViewWidget):
         path_offset = [fov * .5 for fov in self.fov_dimensions]
         for coord, tile_dimension, visible in zip(self.grid_coords, self.tile_z_dimensions, self.tile_visibility):
             # ignore plane that is not being viewed. TODO: IS this what we want?
-            x = coord[0] if 'x' in self.grid_plane else self.fov_position[0]
-            y = coord[1] if 'y' in self.grid_plane else self.fov_position[1]
-            z = coord[2] if 'z' in self.grid_plane else self.fov_position[2]
+            x = coord[0] if 'x' in self.grid_plane else 0
+            y = coord[1] if 'y' in self.grid_plane else 0
+            z = coord[2] if 'z' in self.grid_plane else 0
             x_size = self.fov_dimensions[0] if 'x' in self.grid_plane else 0
             y_size = self.fov_dimensions[1] if 'y' in self.grid_plane else 0
             z_size = tile_dimension if 'z' in self.grid_plane else 0
@@ -542,7 +541,7 @@ class GridViewWidget(GLViewWidget):
             if return_value == QMessageBox.Ok:
                 self.fov_position = [new_pos['x'], new_pos['y'], new_pos['z']]
                 self.grid_plane = plane  # make sure grid plane remains the same
-                self.fovMoved.emit(new_pos)
+                self.fovMoved.emit([new_pos['x'], new_pos['y'], new_pos['z']])
 
             else:
                 return

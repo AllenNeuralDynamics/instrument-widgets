@@ -345,9 +345,9 @@ class GridViewWidget(GLViewWidget):
         x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
-        axis = GLAxisItem()
-        axis.setSize(50, 0, 50)
-        self.addItem(axis)
+        # axis = GLAxisItem()
+        # axis.setSize(50, 0, 50)
+        # self.addItem(axis)
 
     def update_view(self, attribute_name):
         """Update attributes of grid
@@ -405,11 +405,11 @@ class GridViewWidget(GLViewWidget):
                                                                                 [(axis[0], axis[1], axis[2] + size) for
                                                                                  axis, size in
                                                                                  zip(self.grid_coords,
-                                                                                     self.tile_z_dimensions)]
+                                                                 self.tile_z_dimensions)]
         if plane == ('x', 'y'):
             self.opts['rotation'] = QQuaternion(-1, 0, 0, 0)
         elif plane == ('z', 'y'):
-            self.opts['rotation'] = QQuaternion(0.7, 0, 0.7, 0.0)
+            self.opts['rotation'] = QQuaternion(-0.7, 0, -0.7, 0.0)
         elif plane == ('x', 'z'):
             self.opts['rotation'] = QQuaternion(-.7, .7, 0, 0)
 
@@ -417,11 +417,11 @@ class GridViewWidget(GLViewWidget):
                    'y_min': min([y for x, y, z in coords]), 'y_max': max([y for x, y, z in coords]),
                    'z_min': min([z for x, y, z in coords]), 'z_max': max([z for x, y, z in coords])}
 
-        fov = {**{axis: dim for axis, dim in zip(['x', 'y'], self.fov_dimensions)}, 'z': 10}
+        fov = {**{axis: dim for axis, dim in zip(['x', 'y'], self.fov_dimensions)}, 'z': 0}
         pos = {axis: dim for axis, dim in zip(['x', 'y', 'z'], self.fov_position)}
         distances = {'xy': [sqrt((pos[plane[0]] - x) ** 2 + (pos[plane[1]] - y) ** 2) for x, y, z in coords],
                      'xz': [sqrt((pos[plane[0]] - x) ** 2 + (pos[plane[1]] - z) ** 2) for x, y, z in coords],
-                     'zy': [sqrt((pos[plane[0]] - z) ** 2 + (pos[plane[1]] - y) ** 2) for x, y, z in coords]}
+                     'zy': [sqrt((pos[plane[0]] - y) ** 2 + (pos[plane[1]] - z) ** 2) for x, y, z in coords]}
         max_index = distances[''.join(plane)].index(max(distances[''.join(plane)], key=abs))
         furthest_tile = {'x': coords[max_index][0],
                          'y': coords[max_index][1],

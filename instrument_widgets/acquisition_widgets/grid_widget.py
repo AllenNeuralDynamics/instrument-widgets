@@ -1,7 +1,7 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLAxisItem
 from qtpy.QtWidgets import QSizePolicy, QWidget, QVBoxLayout, QCheckBox, \
     QMessageBox, QApplication, QPushButton, QDoubleSpinBox, QGridLayout, QTableWidget, QButtonGroup, QRadioButton, \
-    QHBoxLayout
+    QHBoxLayout, QLabel
 from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QQuaternion
 import numpy as np
@@ -40,8 +40,8 @@ class GridWidget(QWidget):
 
         # setup grid plan widget
         self.grid_plan = GridPlanWidget(limits[0], limits[1], unit=unit)
-        self.grid_plan.setMinimumHeight(333)
-        self.grid_plan.setMinimumWidth(340)
+        self.grid_plan.setMinimumHeight(360)
+        self.grid_plan.setMinimumWidth(375)
         self.grid_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.grid_plan.setWindowTitle('Grid Plan')
         self.grid_plan.valueChanged.connect(self.z_plan_construction)
@@ -84,26 +84,29 @@ class GridWidget(QWidget):
         self.path.toggled.connect(self.grid_view.toggle_path_visibility)
         layout.addWidget(self.path, 0, 0)
 
-        self.anchor = QCheckBox('Anchor Grid:')
-        self.anchor.toggled.connect(self.toggle_grid_position)
-        layout.addWidget(self.anchor, 1, 0)
+        layout.addWidget(QLabel('Anchor Grid:'), 2, 0)
 
-        self.grid_position_widgets = [QDoubleSpinBox(), QDoubleSpinBox()]
-        for i, axis, box in zip(range(1, 3), coordinate_plane, self.grid_position_widgets):
-            box.setValue(fov_position[i - 1])
-            limit = limits[i - 1]
+        self.anchor_widgets = [QCheckBox(), QCheckBox(), QCheckBox()]
+        self.grid_position_widgets = [QDoubleSpinBox(), QDoubleSpinBox(), QDoubleSpinBox()]
+        for i, axis, box, anchor in zip(range(0, 3), coordinate_plane, self.grid_position_widgets, self.anchor_widgets):
+            box.setValue(fov_position[i])
+            limit = limits[i]
             dec = len(str(limit[0])[str(limit[0]).index('.') + 1:]) if '.' in str(limit[0]) else 0
             box.setDecimals(dec)
             box.setRange(*limit)
             box.setSuffix(f" {unit}")
             box.valueChanged.connect(lambda: setattr(self, 'grid_position', (self.grid_position_widgets[0].value(),
-                                                                             self.grid_position_widgets[1].value())))
+                                                                             self.grid_position_widgets[1].value(),
+                                                                             self.grid_position_widgets[2].value())))
             box.setDisabled(True)
-            layout.addWidget(box, 1, i)
+            layout.addWidget(box, 1, i + 1)
+
+            anchor.toggled.connect(self.toggle_grid_position)
+            layout.addWidget(anchor, 2, i + 1)
 
         self.stop_stage = QPushButton("HALT FOV")
         self.stop_stage.clicked.connect(lambda: self.fovStop.emit())
-        layout.addWidget(self.stop_stage, 2, 0, 1, 4)
+        layout.addWidget(self.stop_stage, 3, 0, 1, 4)
 
         widget = QWidget()
         widget.setLayout(layout)
@@ -119,6 +122,10 @@ class GridWidget(QWidget):
         self.viewValueChanged = self.grid_view.valueChanged
         self.fovMoved = self.grid_view.fovMoved
 
+        # Check and uncheck tiling anchor to disable first tile start box
+        self.anchor_widgets[2].setChecked(True)
+        self.anchor_widgets[2].setChecked(False)
+
     @property
     def grid_position(self):
         return self._grid_position
@@ -128,7 +135,8 @@ class GridWidget(QWidget):
         self._grid_position = value
         if self.grid_plan.grid_position != value:
             self.grid_plan.grid_position = value
-
+        for tile in self.grid_plan.value().iter_grid_positions():  # need to match row, col
+            self.z_plan_table.cellWidget(tile.row, tile.col).start.setValue(value[2]) # change start for tiles
     @property
     def fov_position(self):
         return self._fov_position
@@ -136,11 +144,13 @@ class GridWidget(QWidget):
     @fov_position.setter
     def fov_position(self, value):
         self._fov_position = value
-        if not self.anchor.isChecked():
-            self.grid_position_widgets[0].setValue(value[0])
-            self.grid_position_widgets[1].setValue(value[1])
+        for i in range(3):
+            if not self.anchor_widgets[i].isChecked():
+                self.grid_position_widgets[i].setValue(value[i])
+
         if self.grid_view.fov_position != value:
             self.grid_view.fov_position = value
+
 
     @property
     def fov_dimensions(self):
@@ -157,11 +167,15 @@ class GridWidget(QWidget):
     def toggle_grid_position(self, enable):
         """If grid is anchored, allow user to input grid position"""
 
-        self.grid_position_widgets[0].setEnabled(enable)
-        self.grid_position_widgets[1].setEnabled(enable)
-        self.grid_plan.relative_to.setDisabled(enable)
-        if not enable:  # Graph is anchored
-            self.grid_position = self.fov_position
+        for i in range(3):
+            if self.anchor_widgets[i].isChecked() != self.grid_position_widgets[i].isEnabled():  # button was toggled
+                self.grid_position_widgets[i].setEnabled(enable)
+                if i == 2:  # tiling direction so need to enable/disable start value box in z plan widget
+                    for tile in self.grid_plan.value().iter_grid_positions():  # need to match row, col
+                        self.z_plan_table.cellWidget(tile.row, tile.col).start.setEnabled(enable)
+                if not enable:  # Graph is anchored
+                    self.grid_position[i] = self.fov_position[i]
+        self.grid_plan.relative_to.setDisabled(any([anchor.isChecked() for anchor in self.anchor_widgets]))
 
     def z_plan_construction(self, value):
         """Create new z_plan widget for each new tile """
@@ -199,7 +213,6 @@ class GridWidget(QWidget):
                 for i in range(old_col, value.columns, -1):
                     self.z_plan_table.removeColumn(i)
 
-
         self.toggle_apply_all(self.apply_all.isChecked())
         self.grid_coord_construction()
 
@@ -229,6 +242,7 @@ class GridWidget(QWidget):
         if self.z_plan_table.cellWidget(0, 0) is not None:
             if self.apply_all.isChecked():
                 z = self.z_plan_table.cellWidget(0, 0).value()
+                # TODO: update other tiles
                 # set tile_z_dimension first so grid can render properly
                 self.grid_view.tile_z_dimensions = [z[-1] - z[0]] * len(self.grid_plan.tile_positions)
                 self.grid_view.tile_visibility = [True] * len(self.grid_plan.tile_positions)
@@ -345,22 +359,33 @@ class GridViewWidget(GLViewWidget):
         x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
         self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
 
-        # axis = GLAxisItem()
-        # axis.setSize(50, 0, 50)
-        # self.addItem(axis)
+        axis = GLAxisItem()
+        axis.setSize(50, 0, 50)
+        self.addItem(axis)
 
     def update_view(self, attribute_name):
         """Update attributes of grid
         :param attribute_name: name of attribute to update"""
 
         if attribute_name == 'fov_dimensions':
-            self.fov_view.setSize(*self.fov_dimensions, 0.0)
+            # ignore plane that is not being viewed. TODO: IS this what we want?
+            fov_x = self.fov_dimensions[0] if 'x' in self.grid_plane else 0
+            fov_y = self.fov_dimensions[1] if 'y' in self.grid_plane else 0
+            self.fov_view.setSize(fov_x, fov_y, 0.0)
         elif attribute_name == 'fov_position':
-            self.fov_view.setTransform(QMatrix4x4(1, 0, 0, self.fov_position[0],
-                                                  0, 1, 0, self.fov_position[1],
-                                                  0, 0, 1, self.fov_position[2],
+            # ignore plane that is not being viewed. TODO: IS this what we want?
+            x = self.fov_position[0] if 'x' in self.grid_plane else 0
+            y = self.fov_position[1] if 'y' in self.grid_plane else 0
+            z = self.fov_position[2] if 'z' in self.grid_plane else 0
+            self.fov_view.setTransform(QMatrix4x4(1, 0, 0, x,
+                                                  0, 1, 0, y,
+                                                  0, 0, 1, z,
                                                   0, 0, 0, 1))
-        elif attribute_name == 'grid_coords' or attribute_name == 'tile_dimensions':
+        elif attribute_name == 'grid_coords' or attribute_name == 'tile_dimensions' or attribute_name == 'grid_plane':
+            # ignore plane that is not being viewed. TODO: IS this what we want?
+            fov_x = self.fov_dimensions[0] if 'x' in self.grid_plane else 0
+            fov_y = self.fov_dimensions[1] if 'y' in self.grid_plane else 0
+            self.fov_view.setSize(fov_x, fov_y, 0.0)
             self.update_grid()
 
         self._update_opts()
@@ -371,21 +396,30 @@ class GridViewWidget(GLViewWidget):
         for box in self.grid_BoxItems:
             self.removeItem(box)
         self.grid_BoxItems = []
+        path = []
+        path_offset = [fov * .5 for fov in self.fov_dimensions]
         for coord, tile_dimension, visible in zip(self.grid_coords, self.tile_z_dimensions, self.tile_visibility):
-            x, y, z = coord
+            # ignore plane that is not being viewed. TODO: IS this what we want?
+            x = coord[0] if 'x' in self.grid_plane else self.fov_position[0]
+            y = coord[1] if 'y' in self.grid_plane else self.fov_position[1]
+            z = coord[2] if 'z' in self.grid_plane else self.fov_position[2]
+            x_size = self.fov_dimensions[0] if 'x' in self.grid_plane else 0
+            y_size = self.fov_dimensions[1] if 'y' in self.grid_plane else 0
+            z_size = tile_dimension if 'z' in self.grid_plane else 0
+
             box = GLBoxItem()
-            box.setSize(*self.fov_dimensions, tile_dimension)
+            box.setSize(x_size, y_size, z_size)
             box.setTransform(QMatrix4x4(1, 0, 0, x,
                                         0, 1, 0, y,
                                         0, 0, 1, z,
                                         0, 0, 0, 1))
+            path.append([x + path_offset[0], y + path_offset[1], z])
             box.setColor('white')
             box.setVisible(visible)
             self.grid_BoxItems.append(box)
             self.addItem(box)
 
-        path_offset = [fov * .5 for fov in self.fov_dimensions]
-        path = np.array([*[[x + path_offset[0], y + path_offset[1], z] for x, y, z in self.grid_coords]])
+        path = np.array([*path])
         self.grid_LinePlotItem.setData(pos=path, color=QColor('lime'))
 
     def toggle_path_visibility(self, visible):
@@ -405,7 +439,7 @@ class GridViewWidget(GLViewWidget):
                                                                                 [(axis[0], axis[1], axis[2] + size) for
                                                                                  axis, size in
                                                                                  zip(self.grid_coords,
-                                                                 self.tile_z_dimensions)]
+                                                                                     self.tile_z_dimensions)]
         if plane == ('x', 'y'):
             self.opts['rotation'] = QQuaternion(-1, 0, 0, 0)
         elif plane == ('z', 'y'):
@@ -507,7 +541,7 @@ class GridViewWidget(GLViewWidget):
             return_value = self.move_fov_query([new_pos['x'], new_pos['y'], new_pos['z']])
             if return_value == QMessageBox.Ok:
                 self.fov_position = [new_pos['x'], new_pos['y'], new_pos['z']]
-                self.grid_plane = plane     # make sure grid plane remains the same
+                self.grid_plane = plane  # make sure grid plane remains the same
                 self.fovMoved.emit(new_pos)
 
             else:

@@ -26,6 +26,8 @@ class ZPlanWidget(ZPlanWidgetMMCore):
 
         super().__init__(parent)
 
+        z_limits = z_limits if z_limits is not None else [float('-inf'), float('inf')]
+
         for i in range(self._grid_layout.count()):
             widget = self._grid_layout.itemAt(i).widget()
 
@@ -90,10 +92,21 @@ class ZPlanWidget(ZPlanWidgetMMCore):
         super().mousePressEvent(a0)
 
 
-    # def _on_steps_changed(self, steps: int) -> None:
-    #     """Overwrite so if steps increased, z volume is expanded"""
-    #     if self._mode.value == 'top_bottom':
-    #
-    #     elif self._mode.value == "range_around":
-    #
-    #     elif self._mode == "above_below":
+    def _on_steps_changed(self, steps: int) -> None:
+        """Overwrite so if steps increased, z volume is expanded"""
+
+        if self._mode.value == 'top_bottom':
+            value = self.step.value() + self.top.value() if steps > len(self.value()) else self.top.value()-self.step.value()
+            self.top.setValue(value)
+        elif self._mode.value == "range_around":
+            value = (self.step.value()*steps)-1
+            self.range.blockSignals(True)
+            self.range.setValue(value)
+            self.range.blockSignals(False)
+        elif self._mode.value == "above_below":
+            # don't allow changes to be made in this mode?
+            value = steps-1 if steps > len(self.value()) else steps+1
+            self.steps.blockSignals(True)
+            self.steps.setValue(value)
+            self.steps.blockSignals(False)
+

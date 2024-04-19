@@ -1,14 +1,14 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLAxisItem
 from qtpy.QtWidgets import QSizePolicy, QWidget, QVBoxLayout, QCheckBox, \
-    QMessageBox, QApplication, QPushButton, QDoubleSpinBox, QGridLayout, QTableWidget, QButtonGroup, QRadioButton, \
-    QHBoxLayout, QLabel
+    QMessageBox, QPushButton, QDoubleSpinBox, QGridLayout, QTableWidget, QButtonGroup, QRadioButton, \
+    QHBoxLayout, QLabel, QTableWidgetItem
 from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QQuaternion
 import numpy as np
 from math import tan, radians, sqrt
 from instrument_widgets.acquisition_widgets.grid_plan_widget import GridPlanWidget
 from instrument_widgets.acquisition_widgets.z_plan_widget import ZPlanWidget
-import ast
+import inspect
 
 
 class GridWidget(QWidget):
@@ -50,17 +50,22 @@ class GridWidget(QWidget):
         self.grid_plan.show()
 
         # setup z plan widget
-        self.z_grid_plan = QWidget()
-        self.z_plan_table = QTableWidget()
+        z_widget = QWidget()
+        self.z_plan_table = QTableWidget()  # Table describing z tiles
+        self.z_plan_table.setColumnCount(6)
+        self.z_plan_table.setHorizontalHeaderLabels(['channel', 'row', 'column', 'z0', 'zend', 'step#'])
+        self.z_plan_table.cellClicked.connect(self.show_z_plan_widget)
+        self.z_plan_widgets = [[]]  # 2d list containing z plan widget
 
         checkbox_layout = QHBoxLayout()
         self.apply_all = QCheckBox('Apply to All')
         self.apply_all.toggled.connect(self.toggle_apply_all)
         self.apply_all.toggled.connect(self.grid_coord_construction)
+        #self.toggle_apply_all(True)
         self.apply_all.setChecked(True)
         checkbox_layout.addWidget(self.apply_all)
 
-        self.view_plane = QButtonGroup(self.z_grid_plan)
+        self.view_plane = QButtonGroup(z_widget)
         for view in ['(x, y)', '(x, z)', '(z, y)']:
             button = QRadioButton(view)
             button.clicked.connect((lambda clicked, b=button: setattr(self.grid_view, 'grid_plane',
@@ -72,9 +77,9 @@ class GridWidget(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.z_plan_table)
         layout.addLayout(checkbox_layout)
-        self.z_grid_plan.setLayout(layout)
-        self.z_grid_plan.setWindowTitle('Tiling Plan')
-        self.z_grid_plan.show()
+        z_widget.setLayout(layout)
+        z_widget.setWindowTitle('Tiling Plan')
+        z_widget.show()
 
         # Add extra checkboxes/inputs/buttons to customize grid
         layout = QGridLayout()
@@ -124,7 +129,7 @@ class GridWidget(QWidget):
         # Check and uncheck tiling anchor to disable first tile start box
         self.anchor_widgets[2].setChecked(True)
         self.anchor_widgets[2].setChecked(False)
-
+        self.z_plan_table.show()
     @property
     def grid_position(self):
         return self._grid_position
@@ -135,7 +140,8 @@ class GridWidget(QWidget):
         if self.grid_plan.grid_position != value:
             self.grid_plan.grid_position = value
         for tile in self.grid_plan.value().iter_grid_positions():  # need to match row, col
-            self.z_plan_table.cellWidget(tile.row, tile.col).start.setValue(value[2]) # change start for tiles
+            self.z_plan_widgets[tile.row][tile.col].start.setValue(value[2])  # change start for tiles
+
     @property
     def fov_position(self):
         return self._fov_position
@@ -149,7 +155,6 @@ class GridWidget(QWidget):
 
         if self.grid_view.fov_position != value:
             self.grid_view.fov_position = value
-
 
     @property
     def fov_dimensions(self):
@@ -171,7 +176,7 @@ class GridWidget(QWidget):
                 self.grid_position_widgets[i].setEnabled(enable)
                 if i == 2:  # tiling direction so need to enable/disable start value box in z plan widget
                     for tile in self.grid_plan.value().iter_grid_positions():  # need to match row, col
-                        self.z_plan_table.cellWidget(tile.row, tile.col).start.setEnabled(enable)
+                        self.z_plan_widgets[tile.row][tile.col].start.setEnabled(enable)
                 if not enable:  # Graph is anchored
                     self.grid_position[i] = self.fov_position[i]
         self.grid_plan.relative_to.setDisabled(any([anchor.isChecked() for anchor in self.anchor_widgets]))
@@ -179,46 +184,59 @@ class GridWidget(QWidget):
     def z_plan_construction(self, value):
         """Create new z_plan widget for each new tile """
 
-        old_row = self.z_plan_table.rowCount()
-        old_col = self.z_plan_table.columnCount()
-
-        # need to set rows and columns before adding widget
-        self.z_plan_table.setRowCount(value.rows)
-        self.z_plan_table.setColumnCount(value.columns)
+        old_row = len(self.z_plan_widgets)
+        old_col = len(self.z_plan_widgets[0]) if old_row != 0 else 0
 
         if old_row != value.rows:
             difference = value.rows - old_row
             if difference > 0:  # rows added
                 for i in range(old_row, value.rows, 1):
+                    self.z_plan_widgets.append([None] * value.columns)  # add row
                     for j in range(value.columns):
-                        z = self.create_z_plan_widget()
+                        z = self.create_z_plan_widget(i, j)
                         z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
-                        self.z_plan_table.setCellWidget(i, j, z)
-                        self.z_plan_table.setRowHeight(i, 175)
+                        self.z_plan_widgets[i][j] = z
+                        self.create_z_table_row(z, i, j)
             else:  # rows deleted
                 for i in range(old_row, value.rows, -1):
-                    self.z_plan_table.removeRow(i)
+                    del self.z_plan_widgets[i][:]
 
         if old_col != value.columns:
             difference = value.columns - old_col
             if difference > 0:  # cols added
                 for i in range(value.rows):
                     for j in range(old_col, value.columns, 1):
-                        z = self.create_z_plan_widget()
+                        z = self.create_z_plan_widget(i, j)
                         z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
-                        self.z_plan_table.setCellWidget(i, j, z)
-                        self.z_plan_table.setColumnWidth(j, 250)
+
+                        self.z_plan_widgets[i].append(z)  # add column
+                        self.create_z_table_row(z, i, j)
             else:  # cols deleted
-                for i in range(old_col, value.columns, -1):
-                    self.z_plan_table.removeColumn(i)
+                for j in range(old_col, value.columns, -1):
+                    del self.z_plan_widgets[:][j]
+        if len(self.z_plan_widgets[0]) != 0:
+            self.toggle_apply_all(self.apply_all.isChecked())
+            self.grid_coord_construction()
 
-        self.toggle_apply_all(self.apply_all.isChecked())
-        self.grid_coord_construction()
+    def create_z_table_row(self, z, row, column):
+        """Create a correctly formatted row in the z_plan_table under the last row"""
+        # need to insert row before adding item
 
-    def create_z_plan_widget(self):
+        self.z_plan_table.insertRow(self.z_plan_table.rowCount())
+        for j, value in enumerate([row, column, z.value()[0], z.value()[-1], z.steps.value()]):
+            item = QTableWidgetItem(str(value))
+            item.setFlags(Qt.ItemIsEnabled)  # disable cell
+            self.z_plan_table.setItem(self.z_plan_table.rowCount() - 1, j + 1, QTableWidgetItem(item))
+        z.valueChanged.connect(lambda val: self.update_z_plan_table(val, row))
+
+    def create_z_plan_widget(self, row, column):
         """Function to create and connect ZPlanWidget"""
+
         z = ZPlanWidget(self.limits[2], self.unit)
         z.valueChanged.connect(self.grid_coord_construction)
+        z.setWindowTitle(f'({row}, {column})')
+        z.setVisible(False)
+
         # turn checked button text into tuple
         # z.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane',
         #                                        tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
@@ -235,12 +253,35 @@ class GridWidget(QWidget):
         hide.toggled.connect(self.grid_coord_construction)
         return hide
 
+    def update_z_plan_table(self, val, row):
+        """Update z plan table with new value"""
+
+        for j, value in zip([1, 3, 4, 5], [row, val[0], val[-1], len(val)]):
+            item = QTableWidgetItem(str(value))
+            item.setFlags(Qt.ItemIsEnabled)  # disable cell
+            self.z_plan_table.setItem(row, j, QTableWidgetItem(item))
+
+    def show_z_plan_widget(self, row, column):
+        """Show z_plan_widget when cell in the row of table is clicked"""
+        print('show')
+        if self.apply_all.isChecked():
+            row = 0
+        z_row = int(self.z_plan_table.item(row, 1).text())
+        z_column = int(self.z_plan_table.item(row, 2).text())
+
+        # Hide all other z widgets
+        for i in range(len(self.z_plan_widgets)):
+            for j in range(len(self.z_plan_widgets[0])):
+                self.z_plan_widgets[i][j].setVisible(False)
+
+        self.z_plan_widgets[z_row][z_column].setVisible(True)
+
     def grid_coord_construction(self, value=None):
         """Create current list of x,y,z of planned grid"""
 
-        if self.z_plan_table.cellWidget(0, 0) is not None:
+        if len(self.z_plan_widgets[0]) != 0:
             if self.apply_all.isChecked():
-                z = self.z_plan_table.cellWidget(0, 0).value()
+                z = self.z_plan_widgets[0][0].value()
                 # TODO: update other tiles
                 # set tile_z_dimension first so grid can render properly
                 self.grid_view.tile_z_dimensions = [z[-1] - z[0]] * len(self.grid_plan.tile_positions)
@@ -253,10 +294,10 @@ class GridWidget(QWidget):
                 tile_xy = self.grid_plan.tile_positions
                 for i, tile in enumerate(self.grid_plan.value().iter_grid_positions()):  # need to match row, col
                     x, y = tile_xy[i]
-                    z = self.z_plan_table.cellWidget(tile.row, tile.col).value()
+                    z = self.z_plan_widgets[tile.row][tile.col].value()
                     tile_xyz.append((x, y, z[0]))
                     tile_z_dimensions.append(z[-1] - z[0])
-                    if not self.z_plan_table.cellWidget(tile.row, tile.col).hidden:
+                    if not self.z_plan_widgets[tile.row][tile.col].hidden:
                         tile_visibility.append(True)
                     else:
                         tile_visibility.append(False)
@@ -265,13 +306,21 @@ class GridWidget(QWidget):
                 self.grid_view.tile_visibility = tile_visibility
 
     def toggle_apply_all(self, checked):
-        """If apply all is toggled, disable/enable tab widget accordingly and reconstruct gui coords"""
+        """If apply all is toggled, disable/enable tab widget accordingly and reconstruct gui coords.
+        Also change visible z plan widget"""
+        
+        for i in range(len(self.z_plan_widgets)):
+            for j in range(len(self.z_plan_widgets[0])):
+                self.z_plan_widgets[i][j].setDisabled(checked)
+                if checked:
+                    self.z_plan_widgets[i][j].setVisible(False)
+        # if self.z_plan_widgets[0][0] is not None:
+        #     self.z_plan_widgets[0][0].setDisabled(False)  # always enabled
 
-        for i in range(0, self.z_plan_table.rowCount()):
-            for j in range(0, self.z_plan_table.columnCount()):
-                self.z_plan_table.cellWidget(i, j).setDisabled(checked)
-        if self.z_plan_table.cellWidget(0, 0) is not None:
-            self.z_plan_table.cellWidget(0, 0).setDisabled(False)  # always enabled
+        if checked:
+            self.z_plan_widgets[0][0].setDisabled(False)
+            self.z_plan_widgets[0][0].setVisible(True)
+
 
     def tile_configuration(self):
         """Provide tile configuration in configuration a voxel acquisition is expecting.

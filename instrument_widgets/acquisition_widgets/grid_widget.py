@@ -50,7 +50,7 @@ class GridWidget(QWidget):
         self.grid_plan.show()
 
         # setup z plan widget
-        z_widget = QWidget()
+        self.z_widget = QWidget()   # IMPORTANT: needs to be an attribute so QWidget will stay open
         self.z_plan_table = QTableWidget()  # Table describing z tiles
         self.z_plan_table.setColumnCount(6)
         self.z_plan_table.setHorizontalHeaderLabels(['channel', 'row', 'column', 'z0', 'zend', 'step#'])
@@ -65,7 +65,7 @@ class GridWidget(QWidget):
         self.apply_all.setChecked(True)
         checkbox_layout.addWidget(self.apply_all)
 
-        self.view_plane = QButtonGroup(z_widget)
+        self.view_plane = QButtonGroup(self.z_widget)
         for view in ['(x, y)', '(x, z)', '(z, y)']:
             button = QRadioButton(view)
             button.clicked.connect((lambda clicked, b=button: setattr(self.grid_view, 'grid_plane',
@@ -77,9 +77,9 @@ class GridWidget(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.z_plan_table)
         layout.addLayout(checkbox_layout)
-        z_widget.setLayout(layout)
-        z_widget.setWindowTitle('Tiling Plan')
-        z_widget.show()
+        self.z_widget.setLayout(layout)
+        self.z_widget.setWindowTitle('Tiling Plan')
+        self.z_widget.show()
 
         # Add extra checkboxes/inputs/buttons to customize grid
         layout = QGridLayout()

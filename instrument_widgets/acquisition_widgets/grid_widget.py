@@ -30,13 +30,29 @@ class GridWidget(QWidget):
         self.unit = unit
 
         # Setup grid view widget
+        self.grid_view_widget = QWidget()  # IMPORTANT: needs to be an attribute so QWidget will stay open
+        grid_view_layout = QVBoxLayout()
+
         self.grid_view = GridViewWidget(coordinate_plane, fov_dimensions, fov_position, view_color)
         self.grid_view.valueChanged.connect(lambda value: setattr(self, value, getattr(self.grid_view, value)))
+        grid_view_layout.addWidget(self.grid_view)
+
+        button_layout = QHBoxLayout()
+        view_plane = QButtonGroup(self.grid_view_widget)
+        for view in ['(x, z)', '(z, y)', '(x, y)']:
+            button = QRadioButton(view)
+            button.clicked.connect(lambda clicked, b=button: setattr(self.grid_view, 'grid_plane',
+                                                                     tuple(x for x in b.text() if x.isalpha())))
+            view_plane.addButton(button)
+            button_layout.addWidget(button)
+            button.setChecked(True)
+        grid_view_layout.addLayout(button_layout)
         self.grid_view.setMinimumHeight(333)
         self.grid_view.setMinimumWidth(333)
         self.grid_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.grid_view.setWindowTitle('Grid View')
-        self.grid_view.show()
+        self.grid_view_widget.setLayout(grid_view_layout)
+        self.grid_view_widget.setWindowTitle('Grid View')
+        self.grid_view_widget.show()
 
         # setup grid plan widget
         self.grid_plan = GridPlanWidget(limits[0], limits[1], unit=unit)
@@ -45,15 +61,14 @@ class GridWidget(QWidget):
         self.grid_plan.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.grid_plan.setWindowTitle('Grid Plan')
         self.grid_plan.valueChanged.connect(self.z_plan_construction)
-        # self.grid_plan.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
-        # self.grid_plan.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane', ('x', 'y')))
         self.grid_plan.show()
 
         # setup z plan widget
-        self.z_widget = QWidget()   # IMPORTANT: needs to be an attribute so QWidget will stay open
+        self.z_widget = QWidget()  # IMPORTANT: needs to be an attribute so QWidget will stay open
         self.z_plan_table = QTableWidget()  # Table describing z tiles
         self.z_plan_table.setColumnCount(6)
         self.z_plan_table.setHorizontalHeaderLabels(['channel', 'row', 'column', 'z0', 'zend', 'step#'])
+        self.z_plan_table.resizeColumnsToContents()
         self.z_plan_table.cellClicked.connect(self.show_z_plan_widget)
         self.z_plan_widgets = [[]]  # 2d list containing z plan widget
 
@@ -61,18 +76,21 @@ class GridWidget(QWidget):
         self.apply_all = QCheckBox('Apply to All')
         self.apply_all.toggled.connect(self.toggle_apply_all)
         self.apply_all.toggled.connect(self.grid_coord_construction)
-        #self.toggle_apply_all(True)
         self.apply_all.setChecked(True)
         checkbox_layout.addWidget(self.apply_all)
 
-        self.view_plane = QButtonGroup(self.z_widget)
-        for view in ['(x, y)', '(x, z)', '(z, y)']:
+        self.row_order = 'By Acquisition'
+        button_layout = QVBoxLayout()
+        table_order = QButtonGroup(self.z_widget)
+        for view in ['By Row', 'By Column', 'By Acquisition']:
             button = QRadioButton(view)
-            button.clicked.connect((lambda clicked, b=button: setattr(self.grid_view, 'grid_plane',
-                                                                      tuple(x for x in b.text() if x.isalpha()))))
-            self.view_plane.addButton(button)
-            checkbox_layout.addWidget(button)
+            button.clicked.connect(lambda clicked, b=button: setattr(self, 'row_order', b.text()))
+            button.clicked.connect(lambda clicked: self.z_plan_construction(self.grid_plan.value()))
+            table_order.addButton(button)
+            button_layout.addWidget(button)
             button.setChecked(True)
+        checkbox_layout.addWidget(QLabel('Table Order: '))
+        checkbox_layout.addLayout(button_layout)
 
         layout = QVBoxLayout()
         layout.addWidget(self.z_plan_table)
@@ -130,6 +148,7 @@ class GridWidget(QWidget):
         self.anchor_widgets[2].setChecked(True)
         self.anchor_widgets[2].setChecked(False)
         self.z_plan_table.show()
+
     @property
     def grid_position(self):
         return self._grid_position
@@ -186,7 +205,7 @@ class GridWidget(QWidget):
 
         old_row = len(self.z_plan_widgets)
         old_col = len(self.z_plan_widgets[0]) if old_row != 0 else 0
-
+        # update self.z_plan_widgets
         if old_row != value.rows:
             difference = value.rows - old_row
             if difference > 0:  # rows added
@@ -196,11 +215,8 @@ class GridWidget(QWidget):
                         z = self.create_z_plan_widget(i, j)
                         z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
                         self.z_plan_widgets[i][j] = z
-                        self.create_z_table_row(z, i, j)
             else:  # rows deleted
-                for i in range(old_row, value.rows, -1):
-                    del self.z_plan_widgets[i][:]
-
+                self.z_plan_widgets = self.z_plan_widgets[:difference]
         if old_col != value.columns:
             difference = value.columns - old_col
             if difference > 0:  # cols added
@@ -208,12 +224,26 @@ class GridWidget(QWidget):
                     for j in range(old_col, value.columns, 1):
                         z = self.create_z_plan_widget(i, j)
                         z._grid_layout.addWidget(self.create_hide_widget(z), 7, 0)
-
                         self.z_plan_widgets[i].append(z)  # add column
-                        self.create_z_table_row(z, i, j)
             else:  # cols deleted
-                for j in range(old_col, value.columns, -1):
-                    del self.z_plan_widgets[:][j]
+                self.z_plan_widgets = [row[:difference] for row in self.z_plan_widgets]
+        # update grid
+        self.z_plan_table.clear()
+        self.z_plan_table.setRowCount(0)
+        self.z_plan_table.setColumnCount(6)
+        self.z_plan_table.setHorizontalHeaderLabels(['channel', 'row', 'column', 'z0', 'zend', 'step#'])
+        self.z_plan_table.resizeColumnsToContents()
+        if self.row_order == 'By Acquisition':
+            for tile in value:
+                self.create_z_table_row(self.z_plan_widgets[tile.row][tile.col], tile.row, tile.col)
+        elif self.row_order == 'By Row':
+            for i in range(value.rows):
+                for j in range(value.columns):
+                    self.create_z_table_row(self.z_plan_widgets[i][j], i, j)
+        elif self.row_order == 'By Column':
+            for j in range(value.columns):
+                for i in range(value.rows):
+                    self.create_z_table_row(self.z_plan_widgets[i][j], i, j)
         if len(self.z_plan_widgets[0]) != 0:
             self.toggle_apply_all(self.apply_all.isChecked())
             self.grid_coord_construction()
@@ -221,7 +251,6 @@ class GridWidget(QWidget):
     def create_z_table_row(self, z, row, column):
         """Create a correctly formatted row in the z_plan_table under the last row"""
         # need to insert row before adding item
-
         self.z_plan_table.insertRow(self.z_plan_table.rowCount())
         for j, value in enumerate([row, column, z.value()[0], z.value()[-1], z.steps.value()]):
             item = QTableWidgetItem(str(value))
@@ -236,12 +265,8 @@ class GridWidget(QWidget):
         z.valueChanged.connect(self.grid_coord_construction)
         z.setWindowTitle(f'({row}, {column})')
         z.setVisible(False)
+        z.start.setEnabled(self.anchor_widgets[2].isChecked())
 
-        # turn checked button text into tuple
-        # z.valueChanged.connect(lambda: setattr(self.grid_view, 'grid_plane',
-        #                                        tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
-        # z.clicked.connect(lambda: setattr(self.grid_view, 'grid_plane',
-        #                                   tuple(x for x in self.view_plane.checkedButton().text() if x.isalpha())))
         return z
 
     def create_hide_widget(self, z):
@@ -255,15 +280,22 @@ class GridWidget(QWidget):
 
     def update_z_plan_table(self, val, row):
         """Update z plan table with new value"""
-
-        for j, value in zip([1, 3, 4, 5], [row, val[0], val[-1], len(val)]):
-            item = QTableWidgetItem(str(value))
-            item.setFlags(Qt.ItemIsEnabled)  # disable cell
-            self.z_plan_table.setItem(row, j, QTableWidgetItem(item))
+        if self.apply_all.isChecked():
+            for i in range(self.z_plan_table.rowCount()):
+                for j, value in zip([1, 3, 4, 5], [row, val[0], val[-1], len(val)]):
+                    if (item := QTableWidgetItem(str(value))) != self.z_plan_table.itemAt(i, j):
+                        item.setFlags(Qt.ItemIsEnabled)  # disable cell
+                        self.z_plan_table.setItem(i, j, QTableWidgetItem(item))
+        else:
+            for j, value in zip([1, 3, 4, 5], [row, val[0], val[-1], len(val)]):
+                if (item := QTableWidgetItem(str(value))) != self.z_plan_table.itemAt(row, j):
+                    item.setFlags(Qt.ItemIsEnabled)  # disable cell
+                    self.z_plan_table.setItem(row, j, QTableWidgetItem(item))
+        self.z_plan_table.resizeColumnsToContents()
 
     def show_z_plan_widget(self, row, column):
         """Show z_plan_widget when cell in the row of table is clicked"""
-        print('show')
+
         if self.apply_all.isChecked():
             row = 0
         z_row = int(self.z_plan_table.item(row, 1).text())
@@ -308,19 +340,16 @@ class GridWidget(QWidget):
     def toggle_apply_all(self, checked):
         """If apply all is toggled, disable/enable tab widget accordingly and reconstruct gui coords.
         Also change visible z plan widget"""
-        
+
         for i in range(len(self.z_plan_widgets)):
             for j in range(len(self.z_plan_widgets[0])):
                 self.z_plan_widgets[i][j].setDisabled(checked)
                 if checked:
                     self.z_plan_widgets[i][j].setVisible(False)
-        # if self.z_plan_widgets[0][0] is not None:
-        #     self.z_plan_widgets[0][0].setDisabled(False)  # always enabled
-
-        if checked:
-            self.z_plan_widgets[0][0].setDisabled(False)
-            self.z_plan_widgets[0][0].setVisible(True)
-
+        if len(self.z_plan_widgets[0]) != 0:
+            self.z_plan_widgets[0][0].setDisabled(False)  # always enabled
+            if checked:
+                self.z_plan_widgets[0][0].setVisible(True)
 
     def tile_configuration(self):
         """Provide tile configuration in configuration a voxel acquisition is expecting.

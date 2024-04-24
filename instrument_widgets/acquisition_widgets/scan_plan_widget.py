@@ -111,6 +111,8 @@ class ScanPlanWidget(QWidget):
 
         else:
             self._scan_starts[row, column] = value
+            volume_value = self.z_plan_widgets[row][column].value()
+            self._scan_volumes[row, column] = volume_value[-1] - volume_value[0]
             self.scanStart.emit(self._scan_starts)
 
     @property
@@ -141,11 +143,8 @@ class ScanPlanWidget(QWidget):
 
             if (row, column) == (0, 0):  # skip (0,0) tile since always enabled and connected
                 if checked:
-                    self.blockSignals(True)  # block signals to prevent grid updating more than once
-                    self.set_scan_volume(z.value(), 0, 0)
-                    self.set_scan_start(z.start.value(), 0, 0)
-                    self.blockSignals(False)
                     self.set_tile_visibility(z.hide.isChecked(), 0, 0)
+                    self.set_scan_start(z.start.value(), 0, 0)
 
             else:
                 # if not checked, enable all widgets and connect signals: else, disable all and disconnect signals

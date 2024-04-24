@@ -51,7 +51,7 @@ class VolumeModel(GLViewWidget):
         self.coordinate_plane = coordinate_plane
         self.fov_dimensions = fov_dimensions
         self.fov_position = fov_position
-        self.grid_plane = ['x', 'y']  # plane currently being viewed
+        self.grid_plane = ('x', 'y')  # plane currently being viewed
 
         self.scan_volumes = np.zeros([1, 1])  # 2d list detailing volume of tiles
         self.grid_coords = np.zeros([1, 1, 3])  # 2d list detailing start position of tiles
@@ -72,24 +72,15 @@ class VolumeModel(GLViewWidget):
 
         self.valueChanged[str].connect(self.update_model)
         self.resized.connect(self._update_opts)
-
-        self.opts['center'] = QVector3D(self.fov_position[0] + self.fov_dimensions[0] / 2,
-                                        self.fov_position[1] + self.fov_dimensions[1] / 2,
-                                        0)
-        y_dist = (self.fov_dimensions[1] * 2) / 2 * tan(radians(self.opts['fov'])) \
-                 * (self.size().width() / self.size().height())
-        x_dist = (self.fov_dimensions[0] * 2) / 2 * tan(radians(self.opts['fov']))
-        self.opts['distance'] = x_dist if x_dist > y_dist else y_dist
-
         self.show()
-        # axis = GLAxisItem()
-        # axis.setSize(50, 0, 50)
-        # self.addItem(axis)
+
+        self._update_opts()
 
     def update_model(self, attribute_name):
         """Update attributes of grid
         :param attribute_name: name of attribute to update"""
 
+        print('updating', attribute_name)
         if attribute_name == 'fov_position':
             # update fov_pos
             x = self.fov_position[0] if 'x' in self.grid_plane else 0
@@ -110,6 +101,7 @@ class VolumeModel(GLViewWidget):
             for box in self.grid_BoxItems:
                 self.removeItem(box)
             self.grid_BoxItems = []
+
             for row in range(len(self.grid_coords)):
                 for column in range(len(self.grid_coords[0])):
                     coord = self.grid_coords[row][column]
@@ -117,8 +109,8 @@ class VolumeModel(GLViewWidget):
                     x = coord[0] if 'x' in self.grid_plane else 0
                     y = coord[1] if 'y' in self.grid_plane else 0
                     z = coord[2] if 'z' in self.grid_plane else 0
-                    z_size = self.scan_volumes[row, column] if 'z' in self.grid_plane else 0
 
+                    z_size = self.scan_volumes[row, column] if 'z' in self.grid_plane else 0
                     box = GLBoxItem()
                     box.setSize(fov_x, fov_y, z_size)
                     box.setTransform(QMatrix4x4(1, 0, 0, x,

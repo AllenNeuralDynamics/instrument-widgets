@@ -7,6 +7,7 @@ import enum
 import numpy as np
 from time import time
 
+
 class Mode(enum.Enum):
     """Recognized ZPlanWidget modes."""
 
@@ -19,8 +20,10 @@ class ScanPlanWidget(QWidget):
     """Widget that organizes a matrix of ZPlanWidget"""
 
     scanChanged = Signal()
-    tileVisibility = Signal(list)
-    scanVolume = Signal(list)
+    tileVisibility = Signal(np.ndarray)
+    scanVolume = Signal(np.ndarray)
+    scanStart = Signal(np.ndarray)
+
     def __init__(self, z_limits: [float] = None, unit: str = 'um'):
 
         super().__init__()
@@ -31,9 +34,9 @@ class ScanPlanWidget(QWidget):
         self._grid_position = 0.0
 
         self.z_plan_widgets = np.empty([0], dtype=object)
-        self._tile_visibility = np.empty([0], dtype=object)
-        self._scan_starts = np.empty([0], dtype=object)
-        self._scan_volumes = np.empty([0], dtype=object)
+        self._tile_visibility = np.ones([1], dtype=bool)  # init as True
+        self._scan_starts = np.empty([0], dtype=float)
+        self._scan_volumes = np.empty([0], dtype=float)
 
         checkbox_layout = QHBoxLayout()
         self.apply_all = QCheckBox('Apply to All')
@@ -55,10 +58,9 @@ class ScanPlanWidget(QWidget):
         """Set start position of grid"""
         # TODO: Can't set grid position if apply all isn't checked. Is this the functionality we want?
         if self.apply_all.isChecked():
-            if self.z_plan_widgets[0,0].start.value() != value:
-                for i in range(self.z_plan_widgets.shape[0]):
-                    for j in range(self.z_plan_widgets.shape[1]):
-                        self.z_plan_widgets[i, j].start.setValue(value)  # change start for tiles
+            if self.z_plan_widgets[0, 0].start.value() != value:
+                for i, j in np.ndindex(self.z_plan_widgets.shape):
+                    self.z_plan_widgets[i][j].start.setValue(value)  # change start for tiles
             self._grid_position = value
 
     @property
@@ -69,8 +71,21 @@ class ScanPlanWidget(QWidget):
     def set_scan_volume(self, value, row, column):
         """create list of scanning volume sizes of all tiles. Tile dimension are arranged in """
 
-        if self.apply_all.isChecked():
-            self._scan_volumes[row, column] = self.z_plan_widgets[0, 0].value()[-1]-self.z_plan_widgets[0, 0].value()[0]
+        if self.apply_all.isChecked() and (row, column) == (0, 0):
+            self._scan_volumes[:, :] = value[-1] - value[0]
+            mode = self.z_plan_widgets[0][0].mode()
+
+            if mode.value == 'top_bottom':
+                widgets = ['top']
+            elif mode.value == 'range_around':
+                widgets = ['range']
+            else:
+                widgets = ['below', 'above']
+
+            for i, j in np.ndindex(self.z_plan_widgets.shape):
+                z = self.z_plan_widgets[i][j]
+                for name in widgets:  # update necessary widgets with corresponding values
+                    getattr(z, name).setValue(getattr(self.z_plan_widgets[0][0], name).value())
 
         else:
             self._scan_volumes[row, column] = value[-1] - value[0]
@@ -83,12 +98,20 @@ class ScanPlanWidget(QWidget):
 
     def set_scan_start(self, value, row, column):
         """create list of scanning volume sizes of all tiles. Tile dimension are arranged in """
-
-        if self.apply_all.isChecked():
-            self._scan_starts[row, column] = self.z_plan_widgets[0, 0].value()[0]
+        if self.apply_all.isChecked() and (row, column) == (0, 0):
+            self._scan_starts[:, :] = value
+            for i, j in np.ndindex(self.z_plan_widgets.shape):
+                z = self.z_plan_widgets[i][j]
+                z.start.setValue(value)
+            # FIXME: Kinda hacky way to do this? to prevent updating model twice, unhook start to trigger a valueChanged
+            #  signal and manually update scan volumes in set_scan_start
+            volume_value = self.z_plan_widgets[0][0].value()
+            self._scan_volumes[:, :] = volume_value[-1] - volume_value[0]
+            self.scanStart.emit(self._scan_starts)
 
         else:
-            self._scan_starts[row, column] = value[0]
+            self._scan_starts[row, column] = value
+            self.scanStart.emit(self._scan_starts)
 
     @property
     def tile_visibility(self):
@@ -98,21 +121,39 @@ class ScanPlanWidget(QWidget):
     def set_tile_visibility(self, checked, row, column):
         """create list of which tiles are visable"""
 
-        if self.apply_all.isChecked():
-            self._tile_visibility[row, column] = self.z_plan_widgets[0, 0].hide.isChecked()
-
+        # update tile_visibility and z widgets to new value if apply all and 0, 0
+        if self.apply_all.isChecked() and (row, column) == (0, 0):
+            self._tile_visibility[:, :] = not checked
+            for i, j in np.ndindex(self.z_plan_widgets.shape):
+                z = self.z_plan_widgets[i][j]
+                z.hide.setChecked(checked)
         else:
-            self._tile_visibility[row, column] = checked
+            self._tile_visibility[row, column] = not checked
+
         self.tileVisibility.emit(self._tile_visibility)
 
     def toggle_apply_all(self, checked):
         """If apply all is toggled, disable/enable tab widget accordingly and reconstruct gui coords.
         Also change visible z plan widget"""
 
-        for i in range(self.z_plan_widgets.shape[0]):
-            for j in range(self.z_plan_widgets.shape[1]):
-                self.z_plan_widgets[i, j].setDisabled(checked)
-        self.z_plan_widgets[0, 0].setDisabled(False)  # always enabled
+        for row, column in np.ndindex(self.z_plan_widgets.shape):
+            z = self.z_plan_widgets[row][column]
+
+            if (row, column) == (0, 0):  # skip (0,0) tile since always enabled and connected
+                if checked:
+                    self.blockSignals(True)  # block signals to prevent grid updating more than once
+                    self.set_scan_volume(z.value(), 0, 0)
+                    self.set_scan_start(z.start.value(), 0, 0)
+                    self.blockSignals(False)
+                    self.set_tile_visibility(z.hide.isChecked(), 0, 0)
+
+            else:
+                # if not checked, enable all widgets and connect signals: else, disable all and disconnect signals
+                z.blockSignals(checked)
+                z.start.blockSignals(checked)
+                z.hide.blockSignals(checked)
+                z.setEnabled(not checked)
+                z.setVisible(not checked)
 
     def scan_plan_construction(self, value: useq.GridFromEdges | useq.GridRowsColumns | useq.GridWidthHeight):
         """Create new z_plan widget for each new tile """
@@ -121,19 +162,28 @@ class ScanPlanWidget(QWidget):
             old_row = self.z_plan_widgets.shape[0]
             old_col = self.z_plan_widgets.shape[1] if old_row != 0 else 0
 
+            # close old row and column widget
+            if value.rows - old_row < 0:
+                for i in range(value.rows, old_row):
+                    for j in range(old_col):
+                        self.z_plan_widgets[i][j].close()
+            if value.columns - old_col < 0:
+                for i in range(old_row):
+                    for j in range(value.columns, old_col):
+                        self.z_plan_widgets[i][j].close()
+
             # resize array to new size
             for array, name in zip([self.z_plan_widgets, self.tile_visibility, self.scan_starts, self.scan_volumes],
                                    ['z_plan_widgets', '_tile_visibility', '_scan_starts', '_scan_volumes']):
                 setattr(self, name, np.resize(array, (value.rows, value.columns)))
-
-            # update new rows and columns
-            row_start = old_row if value.rows - old_row > 0 else 0
-            column_start = old_col if value.columns - old_col > 0 else 0
-
-            if value.rows - old_row > 0 or value.columns - old_col > 0:
-                for i in range(row_start, value.rows):
-                    for j in range(column_start, value.columns):
-
+            # update new rows and columns with widgets
+            if value.rows - old_row > 0:
+                for i in range(old_row, value.rows):
+                    for j in range(value.columns):  # take care of any new column values
+                        self.create_z_plan_widget(i, j)
+            if value.columns - old_col > 0:
+                for i in range(old_row):  # if new rows, already taken care of in previous loop
+                    for j in range(old_col, value.columns):
                         self.create_z_plan_widget(i, j)
 
         self.scanChanged.emit()
@@ -144,21 +194,28 @@ class ScanPlanWidget(QWidget):
         z = ZPlanWidget(self.z_limits, self.unit)
         self.z_plan_widgets[row, column] = z
         z.setWindowTitle(f'({row}, {column})')
-        #z.show()
 
-
-        # update values with appropriate values
-        z_ref = z if not self.apply_all.isChecked() else self.z_plan_widgets[0, 0]
-        self._scan_volumes[row, column] = z_ref.value()[-1] - z_ref.value()[0]
-        self._scan_starts[row, column] = z_ref.start.value()
-        self._tile_visibility[row, column] = not z_ref.hide.isChecked()
+        # update widget with appropriate values
+        z.start.setValue(self._scan_starts[row, column])
+        z.hide.setChecked(not self._tile_visibility[row, column])
+        z.top.setValue(self._scan_volumes[row, column] + self._scan_starts[row, column])
 
         # connect signals
-        z.valueChanged.connect(lambda value: self.set_scan_volume(value, row, column))
+        # FIXME: Kinda hacky way to do this? to prevent updating model twice, unhook start to trigger a valueChanged
+        #  signal and manually update scan volumes in set_scan_start
+        z.start.disconnect()
         z.start.valueChanged.connect(lambda value: self.set_scan_start(value, row, column))
+        z.valueChanged.connect(lambda value: self.set_scan_volume(value, row, column))
         z.hide.toggled.connect(lambda checked: self.set_tile_visibility(checked, row, column))
-        z.valueChanged.connect(self.scanChanged.emit)
 
+        if self.apply_all.isChecked() and (row, column) != (0, 0):  # block signals from widget
+            z.blockSignals(True)
+            z.start.blockSignals(True)
+            z.hide.blockSignals(True)
+            z.setEnabled(False)
+            z.setVisible(False)
+
+        z.show()
         return z
 
 
@@ -172,7 +229,6 @@ class ZPlanWidget(ZPlanWidgetMMCore):
            :param unit: unit of all size values"""
 
         self.start = QDoubleSpinBox()
-        self.hidden = False
 
         super().__init__(parent)
 
@@ -201,8 +257,6 @@ class ZPlanWidget(ZPlanWidgetMMCore):
         self._grid_layout.addWidget(self.start, 4, 1)
 
         self.hide = QCheckBox('Hide')
-        self.hide.toggled.connect(lambda checked: setattr(self, 'hidden', checked))
-        self.hide.toggled.connect(lambda checked: self.valueChanged.emit(self.value()))
         self._grid_layout.addWidget(self.hide, 7, 0)
 
     def value(self):

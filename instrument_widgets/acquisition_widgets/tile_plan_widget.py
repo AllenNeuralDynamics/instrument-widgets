@@ -134,7 +134,6 @@ class TilePlanWidget(GridPlanWidgetMMCore):
 
         coords = [[None] * self.value().columns for _ in range(self.value().rows)]
         if self._mode != "bounds":
-            coords = [[None] * self.value().columns for _ in range(self.value().rows)]
             for tile in self.value():
                 coords[tile.row][tile.col] = [tile.x + self._grid_position[0], tile.y + self._grid_position[1]]
 

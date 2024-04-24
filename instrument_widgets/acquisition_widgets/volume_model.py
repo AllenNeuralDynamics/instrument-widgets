@@ -5,6 +5,7 @@ from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QQuaternion
 from math import tan, radians, sqrt
 from time import time
 import numpy as np
+
 # TODO: Use this else where to. Consider moving it so we don't have to copy paste?
 class SignalChangeVar:
 
@@ -55,11 +56,10 @@ class VolumeModel(GLViewWidget):
         self.scan_volumes = np.zeros([1, 1])  # 2d list detailing volume of tiles
         self.grid_coords = np.zeros([1, 1, 3])  # 2d list detailing start position of tiles
         self.grid_BoxItems = []   # 2D list detailing boxitems in grid
-        self.tile_visibility = [[True]]  # 2d list detailing visibility of tiles
-        self.path = [[0, 0, 0]] # list of points detailing acquisition path
+        self.tile_visibility = np.array([[True]])  # 2d list detailing visibility of tiles
 
-        self.grid_LinePlotItem = GLLinePlotItem()
-        self.addItem(self.grid_LinePlotItem)
+        self.path = GLLinePlotItem(color=QColor('lime'))    # data set externally since tiles are assumed out of order
+        self.addItem(self.path)
 
         self.fov_view = GLBoxItem()
         self.fov_view.setColor(QColor(view_color))
@@ -70,7 +70,7 @@ class VolumeModel(GLViewWidget):
                                               0, 0, 0, 1))
         self.addItem(self.fov_view)
 
-        self.valueChanged[str].connect(self.update_view)
+        self.valueChanged[str].connect(self.update_model)
         self.resized.connect(self._update_opts)
 
         self.opts['center'] = QVector3D(self.fov_position[0] + self.fov_dimensions[0] / 2,
@@ -86,11 +86,10 @@ class VolumeModel(GLViewWidget):
         # axis.setSize(50, 0, 50)
         # self.addItem(axis)
 
-    def update_view(self, attribute_name):
+    def update_model(self, attribute_name):
         """Update attributes of grid
         :param attribute_name: name of attribute to update"""
 
-        start = time()
         if attribute_name == 'fov_position':
             # update fov_pos
             x = self.fov_position[0] if 'x' in self.grid_plane else 0
@@ -107,12 +106,10 @@ class VolumeModel(GLViewWidget):
             fov_y = self.fov_dimensions[1] if 'y' in self.grid_plane else 0
             self.fov_view.setSize(fov_x, fov_y, 0.0)
 
-            #self.update_box_item_count()
-
+            # faster to remove every box than parse which ones have changes
             for box in self.grid_BoxItems:
                 self.removeItem(box)
             self.grid_BoxItems = []
-
             for row in range(len(self.grid_coords)):
                 for column in range(len(self.grid_coords[0])):
                     coord = self.grid_coords[row][column]
@@ -120,65 +117,27 @@ class VolumeModel(GLViewWidget):
                     x = coord[0] if 'x' in self.grid_plane else 0
                     y = coord[1] if 'y' in self.grid_plane else 0
                     z = coord[2] if 'z' in self.grid_plane else 0
-                    z_size = self.scan_volumes[row][column] if 'z' in self.grid_plane else 0
+                    z_size = self.scan_volumes[row, column] if 'z' in self.grid_plane else 0
 
-                    box = GLBoxItem() #self.grid_BoxItems[row][column] #GLBoxItem()
+                    box = GLBoxItem()
                     box.setSize(fov_x, fov_y, z_size)
                     box.setTransform(QMatrix4x4(1, 0, 0, x,
                                                 0, 1, 0, y,
                                                 0, 0, 1, z,
                                                 0, 0, 0, 1))
                     box.setColor('white')
-                    #box.setVisible(self.tile_visibility[row][column])
+                    box.setVisible(self.tile_visibility[row, column])
                     self.grid_BoxItems.append(box)
                     self.addItem(box)
-            self.grid_LinePlotItem.setData(pos=self.path, color=QColor('lime'))
-
         self._update_opts()
-
-    def update_box_item_count(self):
-        """Add or remove box items from graph"""
-
-        old_row = len(self.grid_BoxItems)
-        old_col = len(self.grid_BoxItems[0])
-
-        new_row = len(self.grid_coords)
-        new_col = len(self.grid_coords[0])
-
-        if old_row != new_row:
-            difference = new_row - old_row
-            if difference > 0:  # rows added
-                for i in range(old_row, new_row, 1):
-                    for j in range(old_col):
-                        self.grid_BoxItems.append([None] * new_col)  # add row
-                        self.grid_BoxItems[i][j] = GLBoxItem()
-                        self.addItem(self.grid_BoxItems[i][j])
-            else:  # rows deleted
-                for box in self.grid_BoxItems[difference:]:
-                    if box in self.items:
-                        self.removeItem(box)
-                self.grid_BoxItems = self.grid_BoxItems[:difference]
-        if old_col != new_col:
-            difference = new_col - old_col
-            if difference > 0:  # cols added
-                for i in range(old_row):
-                    for j in range(old_col, new_col, 1):
-                        self.grid_BoxItems[i].append(GLBoxItem())  # add column
-                        self.addItem(self.grid_BoxItems[i][j])
-            else:  # cols deleted
-                for box in [row[difference:] for row in self.grid_BoxItems]:
-                    if box in self.items:
-                        self.removeItem(box)
-                self.grid_BoxItems = [row[:difference] for row in self.grid_BoxItems]
-
 
     def toggle_path_visibility(self, visible):
         """Slot for a radio button to toggle visibility of path"""
 
         if visible:
-            self.grid_LinePlotItem.setVisible(True)
+            self.path.setVisible(True)
         else:
-            self.grid_LinePlotItem.setVisible(False)
+            self.path.setVisible(False)
 
     def _update_opts(self):
         """Update view of widget. Note that x/y notation refers to horizontal/vertical dimensions of grid view"""

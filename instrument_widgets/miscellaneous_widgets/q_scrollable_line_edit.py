@@ -17,4 +17,12 @@ class QScrollableLineEdit(QLineEdit):
             self.setText(str(new_value))
             self.editingFinished.emit()
 
+    def value(self):
+        """Get float or integer of text"""
+        return float(self.text())
+
+    def setValue(self, value):
+        """Set number as text"""
+        self.setText(str(value))
+
 

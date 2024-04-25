@@ -51,10 +51,11 @@ class VolumeWidget(QWidget):
             checkboxes.addWidget(button)
         layout.addLayout(checkboxes, 1, 1, 1, 2)
 
-
         # create tile plan widgets
         self.tile_plan_widget = TilePlanWidget(limits, fov_dimensions, fov_position, coordinate_plane, unit)
         self.fovStop = self.tile_plan_widget.fovStop  # expose for ease of access
+        self.tile_starts = self.tile_plan_widget.grid_position_widgets  # expose for ease of access
+        self.anchor_widgets = self.tile_plan_widget.anchor_widgets  # expose for ease of access
         layout.addWidget(self.tile_plan_widget, 0, 0)
 
         # create scan widgets and initialize first tile
@@ -64,6 +65,10 @@ class VolumeWidget(QWidget):
 
         # hook up tile_plan_widget signals for scan_plan_constructions, volume_model path, and tile start
         self.tile_plan_widget.valueChanged.connect(self.tile_plan_changed)
+        self.tile_starts[2].disconnect()  # disconnect to only trigger update graph once
+        self.tile_starts[2].valueChanged.connect(lambda value: setattr(self.scan_plan_widget, 'grid_position', value))
+        self.anchor_widgets[2].toggled.connect(lambda checked: self.disable_scan_start_widgets(not checked))
+        self.disable_scan_start_widgets(True)
 
         # hook up scan_plan_widget signals to update grid when tiles are changed
         self.scan_plan_widget.tileVisibility.connect(lambda value: setattr(self.volume_model, 'tile_visibility', value))
@@ -95,7 +100,10 @@ class VolumeWidget(QWidget):
         # update tile plan widget
         for i, anchor in enumerate(self.tile_plan_widget.anchor_widgets):
             if not anchor.isChecked():
-                self.tile_plan_widget.grid_position_widgets[i].setValue(value[i])
+                self.tile_starts[i].setValue(value[i])
+                # update scan plan widget
+                if i == 2:
+                    self.scan_plan_widget.grid_position = value[2]
         # update model
         self.volume_model.fov_position = value
 
@@ -142,6 +150,9 @@ class VolumeWidget(QWidget):
         setattr(self.volume_model, 'grid_coords', np.dstack((self.tile_plan_widget.tile_positions,
                                                              self.scan_plan_widget.scan_starts)))
 
+        if not self.anchor_widgets[2].isChecked():  # disable start widget for any new widgets
+            self.disable_scan_start_widgets(True)
+
     def grid_plane_change(self, button):
         """Update grid plane and remap path
         :param button: button that was clicked"""
@@ -151,3 +162,9 @@ class VolumeWidget(QWidget):
                                        [[self.volume_model.grid_coords[t.row][t.col][i] + .5 * self.fov_dimensions[i]
                                          if self.coordinate_plane[i] in self.volume_model.grid_plane else 0. for i in
                                          range(3)] for t in self.tile_plan_widget.value()])  # update path
+
+    def disable_scan_start_widgets(self, disable):
+        """Disable all scan start widgets if tile_plan_widget.grid_position_widgets[2] is checked"""
+
+        for i, j in np.ndindex(self.scan_plan_widget.z_plan_widgets.shape):
+           self.scan_plan_widget.z_plan_widgets[i][j].start.setDisabled(disable)

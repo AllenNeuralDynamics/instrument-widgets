@@ -55,13 +55,21 @@ class ScanPlanWidget(QWidget):
 
     @grid_position.setter
     def grid_position(self, value):
-        """Set start position of grid"""
-        # TODO: Can't set grid position if apply all isn't checked. Is this the functionality we want?
-        if self.apply_all.isChecked():
-            if self.z_plan_widgets[0, 0].start.value() != value:
-                for i, j in np.ndindex(self.z_plan_widgets.shape):
-                    self.z_plan_widgets[i][j].start.setValue(value)  # change start for tiles
-            self._grid_position = value
+        """Set start position of grid for all tiles"""
+
+        # mimic apply all if not checked so  only need to set_scan_start once for (0,0) and other widgets will update
+        if not self.apply_all.isChecked():
+            # block signals to only trigger graph update once
+            self.blockSignals(True)
+            self.apply_all.setChecked(True)
+            self.blockSignals(False)
+
+            self.z_plan_widgets[0,0].start.setValue(value)
+            self.apply_all.setChecked(False)
+
+        else:
+            self.z_plan_widgets[0, 0].start.setValue(value)
+        self._grid_position = value
 
     @property
     def scan_volumes(self):
@@ -98,6 +106,7 @@ class ScanPlanWidget(QWidget):
 
     def set_scan_start(self, value, row, column):
         """create list of scanning volume sizes of all tiles. Tile dimension are arranged in """
+
         if self.apply_all.isChecked() and (row, column) == (0, 0):
             self._scan_starts[:, :] = value
             for i, j in np.ndindex(self.z_plan_widgets.shape):

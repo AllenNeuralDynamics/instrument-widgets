@@ -13,36 +13,33 @@ class TilePlanWidget(GridPlanWidgetMMCore):
 
     def __init__(self,
                  limits=[[float('-inf'), float('inf')], [float('-inf'), float('inf')], [float('-inf'), float('inf')]],
-                 fov_dimensions: list[float] = [1.0, 1.0],
+                 fov_dimensions: list[float] = [1.0, 1.0, 0],
                  fov_position: list[float] = [0.0, 0.0, 0.0],
                  coordinate_plane : list[str] = ['x', 'y', 'z'],
                  unit: str = 'um'):
-        """:param x_limits: list containing max and min values of x dimension
-           :param  y_limits: list containing max and min values of y dimension
+        """:param limits: list of limits ordered in [tile_dim[0], tile_dim[1], scan_dim[0]]
            :param unit: unit of all size values"""
 
         super().__init__()
         # TODO: should these be properties? or should we assume they stay constant?
 
-        _x_limits = limits[0] or [float('-inf'), float('inf')]
-        _y_limits = limits[1] or [float('-inf'), float('inf')]
-        _x_limits.sort()
-        _y_limits.sort()
+        # sort limits
+        limits = [[min(limit), max(limit)] for limit in limits]
 
         # customize area widgets
-        self.area_width.setRange(0.01, _x_limits[-1] - _x_limits[0])
+        self.area_width.setRange(0.01, limits[0][-1] - limits[0][0])
         self.area_width.setSuffix(f" {unit}")
-        self.area_height.setRange(0.01, _y_limits[-1] - _y_limits[0])
+        self.area_height.setRange(0.01, limits[1][-1] - limits[1][0])
         self.area_height.setSuffix(f" {unit}")
 
         # customize bound widgets
-        self.left.setRange(_x_limits[0], _x_limits[-1])
+        self.left.setRange(limits[0][0], limits[0][-1])
         self.left.setSuffix(f" {unit}")
-        self.right.setRange(_x_limits[0], _x_limits[-1])
+        self.right.setRange(limits[0][0], limits[0][-1])
         self.right.setSuffix(f" {unit}")
-        self.top.setRange(_y_limits[0], _y_limits[-1])
+        self.top.setRange(limits[1][0], limits[1][-1])
         self.top.setSuffix(f" {unit}")
-        self.bottom.setRange(_y_limits[0], _y_limits[-1])
+        self.bottom.setRange(limits[1][0], limits[1][-1])
         self.bottom.setSuffix(f" {unit}")
 
         self.setMinimumHeight(360)

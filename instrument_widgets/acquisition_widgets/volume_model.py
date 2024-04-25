@@ -1,5 +1,5 @@
 from pyqtgraph.opengl import GLViewWidget, GLBoxItem, GLLinePlotItem, GLAxisItem
-from qtpy.QtWidgets import QMessageBox
+from qtpy.QtWidgets import QMessageBox, QSizePolicy
 from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QColor, QMatrix4x4, QVector3D, QQuaternion
 from math import tan, radians, sqrt
@@ -47,11 +47,10 @@ class VolumeModel(GLViewWidget):
 
         super().__init__(rotationMethod='quaternion')
 
-        # TODO: units? Checks?
         self.coordinate_plane = coordinate_plane
         self.fov_dimensions = fov_dimensions
         self.fov_position = fov_position
-        self.grid_plane = ('x', 'y')  # plane currently being viewed
+        self.grid_plane = (self.coordinate_plane[0], self.coordinate_plane[1])  # plane currently being viewed
 
         self.scan_volumes = np.zeros([1, 1])  # 2d list detailing volume of tiles
         self.grid_coords = np.zeros([1, 1, 3])  # 2d list detailing start position of tiles
@@ -63,7 +62,7 @@ class VolumeModel(GLViewWidget):
 
         self.fov_view = GLBoxItem()
         self.fov_view.setColor(QColor(view_color))
-        self.fov_view.setSize(*self.fov_dimensions, 0.0)
+        self.fov_view.setSize(*self.fov_dimensions)
         self.fov_view.setTransform(QMatrix4x4(1, 0, 0, self.fov_position[0],
                                               0, 1, 0, self.fov_position[1],
                                               0, 0, 1, self.fov_position[2],
@@ -83,9 +82,9 @@ class VolumeModel(GLViewWidget):
         print('updating', attribute_name)
         if attribute_name == 'fov_position':
             # update fov_pos
-            x = self.fov_position[0] if 'x' in self.grid_plane else 0
-            y = self.fov_position[1] if 'y' in self.grid_plane else 0
-            z = self.fov_position[2] if 'z' in self.grid_plane else 0
+            x = self.fov_position[0] if self.coordinate_plane[0] in self.grid_plane else 0
+            y = self.fov_position[1] if self.coordinate_plane[1] in self.grid_plane else 0
+            z = self.fov_position[2] if self.coordinate_plane[2] in self.grid_plane else 0
             self.fov_view.setTransform(QMatrix4x4(1, 0, 0, x,
                                                   0, 1, 0, y,
                                                   0, 0, 1, z,
@@ -93,8 +92,8 @@ class VolumeModel(GLViewWidget):
 
         else:
             # ignore plane that is not being viewed. TODO: IS this what we want?
-            fov_x = self.fov_dimensions[0] if 'x' in self.grid_plane else 0
-            fov_y = self.fov_dimensions[1] if 'y' in self.grid_plane else 0
+            fov_x = self.fov_dimensions[0] if self.coordinate_plane[0] in self.grid_plane else 0
+            fov_y = self.fov_dimensions[1] if self.coordinate_plane[1] in self.grid_plane else 0
             self.fov_view.setSize(fov_x, fov_y, 0.0)
 
             # faster to remove every box than parse which ones have changes
@@ -106,11 +105,11 @@ class VolumeModel(GLViewWidget):
                 for column in range(len(self.grid_coords[0])):
                     coord = self.grid_coords[row][column]
 
-                    x = coord[0] if 'x' in self.grid_plane else 0
-                    y = coord[1] if 'y' in self.grid_plane else 0
-                    z = coord[2] if 'z' in self.grid_plane else 0
+                    x = coord[0] if self.coordinate_plane[0] in self.grid_plane else 0
+                    y = coord[1] if self.coordinate_plane[1] in self.grid_plane else 0
+                    z = coord[2] if self.coordinate_plane[2] in self.grid_plane else 0
 
-                    z_size = self.scan_volumes[row, column] if 'z' in self.grid_plane else 0
+                    z_size = self.scan_volumes[row, column] if self.coordinate_plane[2] in self.grid_plane else 0
                     box = GLBoxItem()
                     box.setSize(fov_x, fov_y, z_size)
                     box.setTransform(QMatrix4x4(1, 0, 0, x,
@@ -137,10 +136,11 @@ class VolumeModel(GLViewWidget):
         plane = self.grid_plane
         coords = self.grid_coords.reshape([-1, 3]) # flatten array
         # set rotation
-        if plane == ('x', 'y'):
+        if plane == (self.coordinate_plane[0], self.coordinate_plane[1]):
             self.opts['rotation'] = QQuaternion(-1, 0, 0, 0)
         else:
-            self.opts['rotation'] = QQuaternion(-.7, 0, -.7, 0) if plane == ('z', 'y') else QQuaternion(-.7, .7, 0, 0)
+            self.opts['rotation'] = QQuaternion(-.7, 0, -.7, 0) if \
+                plane == (self.coordinate_plane[2], self.coordinate_plane[1]) else QQuaternion(-.7, .7, 0, 0)
             # take into account end of tile and account for difference in size if z included in view
             dimensions = self.scan_volumes.flatten() # flatten array
             coords = np.concatenate((coords, [[x, y, z + sz] for (x,y,z), sz in zip(coords, dimensions)]))

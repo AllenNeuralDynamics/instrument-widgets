@@ -154,7 +154,7 @@ class VolumeModel(GLViewWidget):
         pos = {axis: dim for axis, dim in zip(['x', 'y', 'z'], self.fov_position)}
         distances = {'xy': [sqrt((pos[plane[0]] - x) ** 2 + (pos[plane[1]] - y) ** 2) for x, y, z in coords],
                      'xz': [sqrt((pos[plane[0]] - x) ** 2 + (pos[plane[1]] - z) ** 2) for x, y, z in coords],
-                     'zy': [sqrt((pos[plane[0]] - y) ** 2 + (pos[plane[1]] - z) ** 2) for x, y, z in coords]}
+                     'zy': [sqrt((pos[plane[0]] - z) ** 2 + (pos[plane[1]] - y) ** 2) for x, y, z in coords]}
         max_index = distances[''.join(plane)].index(max(distances[''.join(plane)], key=abs))
         furthest_tile = {'x': coords[max_index][0],
                          'y': coords[max_index][1],

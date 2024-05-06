@@ -69,7 +69,7 @@ class VolumeWidget(QWidget):
 
         # create channel plan widget
         self.channel_plan = ChannelPlanWidget(coordinate_plane, tile_specs)
-        #self.channel_plan.table.cellChanged.connect(self.table_changed)
+        self.channel_plan.table.cellChanged.connect(self.table_changed)
         self.channel_plan.table.currentCellChanged.connect(self.toggle_z_show)
         self.layout.addWidget(self.channel_plan, 2, 0, 1, 2)
 
@@ -105,6 +105,7 @@ class VolumeWidget(QWidget):
         self.scan_plan_widget.scan_plan_construction(self.tile_plan_widget.value())
         self.layout.addWidget(self.scan_plan_widget.z_plan_widgets[0, 0], 2, 2)
         self.scan_plan_widget.z_plan_widgets[0, 0].setVisible(True)
+        self.scan_plan_widget.z_plan_widgets[0, 0].start.valueChanged.connect(self.update_scan_start)
 
         self.setLayout(self.layout)
         self.show()
@@ -179,6 +180,7 @@ class VolumeWidget(QWidget):
         """Update grid plane and remap path
         :param button: button that was clicked"""
 
+        setattr(self.volume_model, 'grid_plane', tuple(x for x in button.text() if x.isalpha()))
         self.volume_model.path.setData(pos=
                                        [[self.volume_model.grid_coords[t.row][t.col][i] + .5 * self.fov_dimensions[i]
                                          if self.coordinate_plane[i] in self.volume_model.grid_plane else 0. for i in
@@ -219,8 +221,8 @@ class VolumeWidget(QWidget):
         self.channel_plan.table.blockSignals(False)
 
         # add new tile to layout
-        #self.layout.addWidget(self.scan_plan_widget.z_plan_widgets[row, column], 2, 2)
-        #self.scan_plan_widget.z_plan_widgets[row, column].setVisible(False)
+        self.layout.addWidget(self.scan_plan_widget.z_plan_widgets[row, column], 2, 2)
+        self.scan_plan_widget.z_plan_widgets[row, column].setVisible(False)
 
     def change_table(self, z_widget, row_items):
         """If z widget is changed, update table"""
@@ -228,7 +230,6 @@ class VolumeWidget(QWidget):
         self.undercover_update_item(z_widget.start.value(), row_items['z'])
         self.undercover_update_item(z_widget.steps.value(), row_items['z steps'])
         self.undercover_update_item(z_widget.step.value(), row_items['z step size'])
-
 
     def table_changed(self, row, column):
         """Update z widget if table is edited"""
@@ -251,6 +252,12 @@ class VolumeWidget(QWidget):
         self.channel_plan.table.blockSignals(True)
         item.setText(str(value))
         self.channel_plan.table.blockSignals(False)
+
+    def update_scan_start(self, value):
+        """If apply all is checked and tile 0,0 start is updated, update tile_start widget in teh scan dimension"""
+
+        if self.scan_plan_widget.apply_all.isChecked():
+            self.tile_starts[2].setValue(value)
 
     def tile_pos_changed(self, attribute):
         """If volume model grid coord changes, update table"""
@@ -283,6 +290,10 @@ class VolumeWidget(QWidget):
     def toggle_apply_all(self, checked):
         """Enable/disable all channel plan cells when apply all is toggled"""
 
+        # disable tilestart and anchor widget it apply all isn't checked
+        self.tile_starts[2].setEnabled(checked if self.anchor_widgets[2].isChecked() else False)
+        self.anchor_widgets[2].setEnabled(checked)
+
         for row, column in np.ndindex(self.channel_plan.tile_items.shape):
             if (row, column) == (0, 0):
                 continue  # 0, 0 always enabled and editable
@@ -299,10 +310,13 @@ class VolumeWidget(QWidget):
             self.channel_plan.table.blockSignals(False)
 
         if checked:
-            hide_row, hide_col = [int(x) for x in self.channel_plan.table.item(self.channel_plan.table.currentRow(), 0).text() if x.isdigit()]
+            hide_row, hide_col = [int(x) for x in
+                                  self.channel_plan.table.item(self.channel_plan.table.currentRow(), 0).text() if
+                                  x.isdigit()]
             self.scan_plan_widget.z_plan_widgets[hide_row, hide_col].setVisible(False)
 
             self.scan_plan_widget.z_plan_widgets[0, 0].setVisible(True)
+
     def toggle_item_flags(self, item, enable):
         """Change flags for enabling/disabling items in channel_plan table"""
 

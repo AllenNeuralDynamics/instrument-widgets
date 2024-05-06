@@ -36,7 +36,7 @@ class ScanPlanWidget(QWidget):
         self._grid_position = 0.0
 
         self.z_plan_widgets = np.empty([0, 1], dtype=object)
-        self._tile_visibility = np.ones([0, 1], dtype=bool)  # init as True
+        self._tile_visibility = np.ones([1, 1], dtype=bool)  # init as True
         self._scan_starts = np.zeros([0, 1], dtype=float)
         self._scan_volumes = np.zeros([0, 1], dtype=float)
 
@@ -161,16 +161,20 @@ class ScanPlanWidget(QWidget):
             z = self.z_plan_widgets[row][column]
 
             if (row, column) == (0, 0):  # skip (0,0) tile since always enabled and connected
-                if checked:
-                    self.set_tile_visibility(z.hide.isChecked(), 0, 0)
-                    self.set_scan_start(z.start.value(), 0, 0)
-
+                continue
             else:
                 # if not checked, enable all widgets and connect signals: else, disable all and disconnect signals
                 z.blockSignals(checked)
                 z.start.blockSignals(checked)
                 z.hide.blockSignals(checked)
                 z.setEnabled(not checked)
+
+        if checked:  # if checked, update all widgets with 0, 0 value
+            self.blockSignals(True)
+            self.set_tile_visibility(self.z_plan_widgets[0][0].hide.isChecked(), 0, 0)
+            self.set_scan_start(self.z_plan_widgets[0][0].start.value(), 0, 0)
+            self.blockSignals(False)
+            self.set_scan_volume(self.z_plan_widgets[0][0].value(), 0, 0)
 
     def scan_plan_construction(self, value: useq.GridFromEdges | useq.GridRowsColumns | useq.GridWidthHeight):
         """Create new z_plan widget for each new tile """
@@ -197,16 +201,18 @@ class ScanPlanWidget(QWidget):
             # resize array to new size
             for array, name in zip([self.z_plan_widgets, self.tile_visibility, self.scan_starts, self.scan_volumes],
                                    ['z_plan_widgets', '_tile_visibility', '_scan_starts', '_scan_volumes']):
+
+                v = array[0, 0] if array.shape != (0,1) else 0  # initialize array with value from first tile
                 if rows > old_row:  # add row
-                    add_on = [[0] * array.shape[1]]*(rows-old_row)
+                    add_on = [[v] * array.shape[1]] * (rows - old_row)
                     setattr(self, name, np.concatenate((array, add_on), axis=0))
                 elif rows < old_row:  # remove row
-                    setattr(self, name, np.delete(array, [old_row - x for x in range(1, (old_row - rows)+1)], axis=0))
+                    setattr(self, name, np.delete(array, [old_row - x for x in range(1, (old_row - rows) + 1)], axis=0))
                 if cols > old_col:  # add column
-                    add_on = [[0] * (cols - old_col) for _ in range(array.shape[0])]
+                    add_on = [[v] * (cols - old_col) for _ in range(array.shape[0])]
                     setattr(self, name, np.concatenate((array, add_on), axis=1))
                 elif cols < old_col:  # remove col
-                    setattr(self, name, np.delete(array, [old_col - x for x in range(1, (old_col - cols)+1)], axis=1))
+                    setattr(self, name, np.delete(array, [old_col - x for x in range(1, (old_col - cols) + 1)], axis=1))
 
             # update new rows and columns with widgets
             if rows - old_row > 0:
@@ -250,7 +256,7 @@ class ScanPlanWidget(QWidget):
         z._grid_layout.addWidget(QLabel(f'({row}, {column})'), 7, 1)
 
         self.tileAdded.emit(row, column)
-        z.show()
+        # z.show()
         return z
 
 

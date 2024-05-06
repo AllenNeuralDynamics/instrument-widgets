@@ -91,7 +91,7 @@ class TilePlanWidget(GridPlanWidgetMMCore):
             if self.anchor_widgets[i].isChecked() != self.grid_position_widgets[i].isEnabled():  # button was toggled
                 self.grid_position_widgets[i].setEnabled(enable)
                 if not enable:  # Graph is not anchored
-                    self.grid_position[i] = self.fov_position[i]
+                    self.grid_position_widgets[i].setValue(self.fov_position[i])
         self.relative_to.setDisabled(any([anchor.isChecked() for anchor in self.anchor_widgets]))
 
     @property

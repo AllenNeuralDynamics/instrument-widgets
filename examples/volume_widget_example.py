@@ -5,6 +5,6 @@ import sys
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    volume_widget = VolumeWidget()
+    volume_widget = VolumeWidget(tile_specs={'power_mw', 'binning'})
 
     sys.exit(app.exec_())

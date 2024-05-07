@@ -84,7 +84,7 @@ class ScanPlanWidget(QWidget):
         if self.apply_all.isChecked() and (row, column) == (0, 0):
             self._scan_volumes[:, :] = value[-1] - value[0]
             mode = self.z_plan_widgets[0][0].mode()
-            widgets = ['step']
+            widgets = ['step', 'steps']
             if mode.value == 'top_bottom':
                 widgets += ['top']
             elif mode.value == 'range_around':
@@ -109,31 +109,35 @@ class ScanPlanWidget(QWidget):
         """Return the start position of grid"""
         return self._scan_starts
 
-    def set_scan_start(self, value, row, column):
-        """create list of scanning volume sizes of all tiles. Tile dimension are arranged in """
+    def set_scan_start(self, widget_value, attr, row, column):
+        """create list of scan starts for all tiles. Starts can be set by the start, range, and above input boxes.
+         :param widget_value: value from whatever widget was changed
+         :param attr: name of input that was changed
+         :param row: row of widget changed
+         :param column: column of widget changed"""
 
+        z = self.z_plan_widgets[row, column]
+        z.blockSignals(True)    # block signal to prevent valueChanged to emit
+
+        value = z.value()
         if self.apply_all.isChecked() and (row, column) == (0, 0):
-            self._scan_starts[:, :] = value
+            self._scan_starts[:, :] = value[0]
             for i, j in np.ndindex(self.z_plan_widgets.shape):
                 z = self.z_plan_widgets[i][j]
-                z.start.setValue(value)
+                getattr(z, attr).setValue(widget_value)
                 z.steps.setValue(len(z.value()))
-            # FIXME: Kinda hacky way to do this? to prevent updating model twice, unhook start to trigger a valueChanged
-            #  signal and manually update scan volumes in set_scan_start
-            volume_value = self.z_plan_widgets[0][0].value()
-            self._scan_volumes[:, :] = volume_value[-1] - volume_value[0]
+
+            # covertly update model volume to prevent updating twice
+            self._scan_volumes[:, :] = value[-1] - value[0]
             self.scanStart.emit(self._scan_starts)
 
         else:
             self._scan_starts[row, column] = value
-            z = self.z_plan_widgets[row, column]
-            z.blockSignals(True)
-            z.steps.setValue(len(z.value()))
-            z.blockSignals(False)
-            volume_value = self.z_plan_widgets[row][column].value()
-            self._scan_volumes[row, column] = volume_value[-1] - volume_value[0]
+            z.steps.setValue(len(value))
+            self._scan_volumes[row, column] = value[-1] - value[0]
             self.scanStart.emit(self._scan_starts)
 
+        z.blockSignals(False)
     @property
     def tile_visibility(self):
         """Return the start position of grid"""
@@ -164,9 +168,7 @@ class ScanPlanWidget(QWidget):
                 continue
             else:
                 # if not checked, enable all widgets and connect signals: else, disable all and disconnect signals
-                z.blockSignals(checked)
-                z.start.blockSignals(checked)
-                z.hide.blockSignals(checked)
+                self.toggle_signals(z, checked)
                 z.setEnabled(not checked)
 
         if checked:  # if checked, update all widgets with 0, 0 value
@@ -239,17 +241,17 @@ class ScanPlanWidget(QWidget):
         z.top.setValue(self._scan_volumes[row, column] + self._scan_starts[row, column])
 
         # connect signals
-        # FIXME: Kinda hacky way to do this? to prevent updating model twice, unhook start to trigger a valueChanged
+        # FIXME: hacky way to do this? to prevent updating model twice, unhook start, range, and above from valueChanged
         #  signal and manually update scan volumes in set_scan_start
-        z.start.disconnect()
-        z.start.valueChanged.connect(lambda value: self.set_scan_start(value, row, column))
+        for name in ['start', 'range', 'above']:
+            widget = getattr(z, name)
+            widget.disconnect()
+            widget.valueChanged.connect(lambda value, attr=name: self.set_scan_start(value, attr, row, column))
         z.valueChanged.connect(lambda value: self.set_scan_volume(value, row, column))
         z.hide.toggled.connect(lambda checked: self.set_tile_visibility(checked, row, column))
 
         if self.apply_all.isChecked() and (row, column) != (0, 0):  # block signals from widget
-            z.blockSignals(True)
-            z.start.blockSignals(True)
-            z.hide.blockSignals(True)
+            self.toggle_signals(z, True)
             z.setEnabled(False)
 
         # added label identifying what tile it corresponds to
@@ -258,6 +260,19 @@ class ScanPlanWidget(QWidget):
         self.tileAdded.emit(row, column)
         # z.show()
         return z
+
+    def toggle_signals(self, z, block):
+        """Set signals block or unblocked for start, range, above, and hide
+        :param z: z widget to toggle signals from
+        :param block: boolean signifying block or unblock"""
+
+        z.blockSignals(block)
+        z.steps.blockSignals(block)
+        z.start.blockSignals(block)
+        z.range.blockSignals(block)
+        z.above.blockSignals(block)
+        z.hide.blockSignals(block)
+
 
 
 class ZPlanWidget(ZPlanWidgetMMCore):
@@ -286,7 +301,7 @@ class ZPlanWidget(ZPlanWidgetMMCore):
                 elif widget.text() == '\u00b5m':
                     widget.setText(unit)
 
-        self._range_readout.hide()
+        #self._range_readout.hide()
         self._bottom_to_top.hide()
         self._top_to_bottom.hide()
         self.layout().children()[-1].itemAt(2).widget().hide()  # Direction label
@@ -360,3 +375,4 @@ class ZPlanWidget(ZPlanWidgetMMCore):
             self.steps.blockSignals(True)
             self.steps.setValue(value)
             self.steps.blockSignals(False)
+        self._on_change(update_steps=False)

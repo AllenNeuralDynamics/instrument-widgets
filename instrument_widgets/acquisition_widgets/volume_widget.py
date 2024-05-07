@@ -81,19 +81,13 @@ class VolumeWidget(QWidget):
         self.disable_scan_start_widgets(True)
 
         # hook up scan_plan_widget signals to update grid and channel plan when tiles are changed
-        self.scan_plan_widget.tileVisibility.connect(lambda value: setattr(self.volume_model, 'tile_visibility', value))
-        self.scan_plan_widget.scanVolume.connect(lambda value: setattr(self.volume_model, 'scan_volumes', value))
-        self.scan_plan_widget.scanStart.connect(self.scan_start_changed)
+        self.scan_plan_widget.scanChanged.connect(self.update_model)
         self.scan_plan_widget.tileAdded.connect(self.tile_added)
         self.scan_plan_widget.tileRemoved.connect(self.channel_plan.delete_tile)
         self.scan_plan_widget.apply_all.toggled.connect(self.toggle_apply_all)
 
-        # When scan changes, scan volume and visibility will also change. To prevent grid unnecessarily updating twice,
-        # covertly update model's volumes and visibility and trigger update when setting model's grid coords
-        self.scan_plan_widget.scanChanged.connect(self.scan_changed)
-
         # update tile position if volume model is updated
-        self.volume_model.valueChanged.connect(self.tile_pos_changed)
+        #self.volume_model.valueChanged.connect(self.tile_pos_changed)
 
         self.limits = limits
         self.coordinate_plane = coordinate_plane
@@ -153,23 +147,12 @@ class VolumeWidget(QWidget):
                                          if self.coordinate_plane[i] in self.volume_model.grid_plane else 0. for i in
                                          range(3)] for t in value])  # update path
 
-    def scan_start_changed(self, value: np.ndarray):
-        """When scan start changes, covertly update model's scan volume and trigger change with update grid_coords.
-        Also update channel plan table
-        :param value: 2d numpy array of tile starts in the scanning dimension"""
+    def update_model(self):
+        """When scan changes, update model"""
 
-        # When scan start changes, scan volume will also change. To prevent grid unnecessarily updating twice, covertly
-        # change volume model scan volumes with updated values and trigger update when setting volume model grid coords
+        # When scan changes, update model
         setattr(self.volume_model, '_scan_volumes', self.scan_plan_widget.scan_volumes)
-        setattr(self.volume_model, 'grid_coords', np.dstack((self.tile_plan_widget.tile_positions, value)))
-
-    def scan_changed(self):
-        """When tile number or position change, update model's tile visibility, volumes, and grid coordinates"""
-
-        # When scan changes, scan volume and visibility will also change. To prevent grid unnecessarily updating thrice,
-        # covertly update model's volumes and visibility and trigger update when setting model's grid coords
         setattr(self.volume_model, '_tile_visibility', self.scan_plan_widget.tile_visibility)
-        setattr(self.volume_model, '_scan_volumes', self.scan_plan_widget.scan_volumes)
         setattr(self.volume_model, 'grid_coords', np.dstack((self.tile_plan_widget.tile_positions,
                                                              self.scan_plan_widget.scan_starts)))
 
@@ -215,8 +198,7 @@ class VolumeWidget(QWidget):
             row_items[self.coordinate_plane[2]].setFlags(flags)
 
         # connect z widget signals to trigger update
-        for attribute in ['start', 'steps', 'step', 'top', 'range', 'below', 'above']:
-            getattr(z, attribute).valueChanged.connect(lambda value: self.change_table(z, row_items))
+        z.valueChanged.connect(lambda value: self.change_table(value, z, row_items))
 
         self.channel_plan.table.blockSignals(False)
 
@@ -224,11 +206,12 @@ class VolumeWidget(QWidget):
         self.layout.addWidget(self.scan_plan_widget.z_plan_widgets[row, column], 2, 2)
         self.scan_plan_widget.z_plan_widgets[row, column].setVisible(False)
 
-    def change_table(self, z_widget, row_items):
+    def change_table(self, value, z_widget, row_items):
         """If z widget is changed, update table"""
 
-        self.undercover_update_item(z_widget.start.value(), row_items['z'])
-        self.undercover_update_item(z_widget.steps.value(), row_items['z steps'])
+        print(z_widget.windowTitle(), 'update')
+        self.undercover_update_item(value[0], row_items['z'])
+        self.undercover_update_item(len(value), row_items['z steps'])
         self.undercover_update_item(z_widget.step.value(), row_items['z step size'])
 
     def table_changed(self, row, column):

@@ -56,9 +56,11 @@ class ChannelPlanWidget(QWidget):
         """Delete row
         :param row: row of the tile to be added NOT table row
         :param column: col of the tile to be added NOT table col"""
-
+        print('deleting')
+        self.table.blockSignals(True)
         table_row = self.tile_items[row, column]['row, column'].row()
         self.table.removeRow(table_row)
+        self.table.blockSignals(False)
 
     def reorder_graph(self, order):
         """Reorder tiles based on order of acquisition"""

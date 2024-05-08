@@ -165,12 +165,10 @@ class ScanPlanWidget(QWidget):
                 for i in range(rows, old_row):
                     for j in range(old_col):
                         self.z_plan_widgets[i, j].close()
-                    self.rowRemoved.emit(i)
             if cols - old_col < 0:
                 for j in range(cols, old_col):
                     for i in range(old_row):
                         self.z_plan_widgets[i, j].close()
-                    self.columnRemoved.emit(j)
 
             # resize array to new size
             for array, name in zip([self.z_plan_widgets, self.tile_visibility, self.scan_starts, self.scan_volumes],
@@ -197,7 +195,6 @@ class ScanPlanWidget(QWidget):
                 for i in range(old_row):  # if new rows, already taken care of in previous loop
                     for j in range(old_col, cols):
                         self.create_z_plan_widget(i, j)
-
         self.scanChanged.emit()
 
     def create_z_plan_widget(self, row, column):
@@ -226,7 +223,6 @@ class ScanPlanWidget(QWidget):
         # added label identifying what tile it corresponds to
         z._grid_layout.addWidget(QLabel(f'({row}, {column})'), 7, 1)
 
-        self.tileAdded.emit(row, column)
         #z.show()
         return z
 

@@ -32,22 +32,25 @@ class ChannelPlanWidget(QWidget):
 
         self.setLayout(layout)
 
-    def add_tile(self, row, col, **kwargs):
+    def add_tile(self, tile_row, tile_col, table_row = None, **kwargs):
         """Add tile to tile items
-        :param row: row of the tile to be added NOT table row
-        :param col: col of the tile to be added NOT table col"""
+        :param tile_row: row of the tile to be added
+        :param tile_col: col of the tile to be added NOT table col
+        :param table_row: row of the table to place items. If None, place in the next available row"""
 
-        if row + 1 > self.tile_items.shape[0]:  # add row
+        if tile_row + 1 > self.tile_items.shape[0]:  # add row
             self.tile_items = np.vstack((self.tile_items, [{}]*self.tile_items.shape[1]))
-        if col + 1 > self.tile_items.shape[1]:  # add column
+        if tile_col + 1 > self.tile_items.shape[1]:  # add column
             self.tile_items = np.hstack((self.tile_items, [[{}] for _ in range(self.tile_items.shape[0])]))
 
-        # row_count = self.table.rowCount()
-        # self.table.insertRow(row_count)
-        #
-        # for header_col, header in enumerate(self.columns):
-        #     self.tile_items[row, col][header] = QTableWidgetItem(str(kwargs.get(header, '')))
-        #     self.table.setItem(row_count, header_col, self.tile_items[row, col][header])
+        table_row = table_row if table_row is not None else self.table.rowCount()
+
+        if table_row >= self.table.rowCount():
+            self.table.insertRow(table_row)
+
+        self.tile_items[tile_row, tile_col] = {key: QTableWidgetItem(str(kwargs.get(key, ''))) for key in self.columns}
+        for header_col, header in enumerate(self.columns):
+            self.table.setItem(table_row, header_col, self.tile_items[tile_row, tile_col][header])
 
     def update_tile(self, row, column):
         """Update row number with the newest information"""
@@ -57,10 +60,9 @@ class ChannelPlanWidget(QWidget):
         :param row: row of the tile to be removed NOT table row"""
 
         self.table.blockSignals(True)
-        # for j in range(self.tile_items.shape[1]):
-        #     print('removing', j, row, self.tile_items[row, j]['row, column'])
-        #     table_row = self.tile_items[row, j]['row, column'].row()
-        #     self.table.removeRow(table_row)
+        for j in range(self.tile_items.shape[1]):
+            table_row = self.tile_items[row, j]['row, column'].row()
+            self.table.removeRow(table_row)
         self.tile_items = np.delete(self.tile_items, row, axis=0)
         self.table.blockSignals(False)
 
@@ -70,14 +72,9 @@ class ChannelPlanWidget(QWidget):
         :param column: col of the tile to be added NOT table col"""
 
         self.table.blockSignals(True)
-        # for i in range(self.tile_items.shape[0]):
-        #     print('removing',  i, column)
-        #     table_row = self.tile_items[i, column]['row, column'].row()
-        #     self.table.removeRow(table_row)
+        for i in range(self.tile_items.shape[0]):
+            table_row = self.tile_items[i, column]['row, column'].row()
+            self.table.removeRow(table_row)
         self.tile_items = np.delete(self.tile_items, column, axis=1)
         self.table.blockSignals(False)
 
-    def reorder_graph(self, order):
-        """Reorder tiles based on order of acquisition"""
-
-        self.table.clear()

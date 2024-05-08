@@ -95,7 +95,6 @@ class ScanPlanWidget(QWidget):
 
         z0 = self.z_plan_widgets[row, column]
         value = z0.value()
-
         if self.apply_all.isChecked() and (row, column) == (0, 0):
             # update scan start, volume, and tile visibility
             self._scan_starts[:, :] = value[0]
@@ -106,7 +105,10 @@ class ScanPlanWidget(QWidget):
                 if (i, j) == (0,0):
                     continue
                 z = self.z_plan_widgets[i, j]
-                getattr(z, attr).setValue(widget_value)
+                if type(getattr(z, attr)) == QCheckBox:
+                    getattr(z, attr).setChecked(widget_value)
+                else:
+                    getattr(z, attr).setValue(widget_value)
                 z._on_change()  # update widget
         else:
             self._scan_starts[row, column] = value[0]
@@ -204,15 +206,14 @@ class ScanPlanWidget(QWidget):
         self.z_plan_widgets[row, column] = z
         z.setWindowTitle(f'({row}, {column})')
 
-        # update widget with appropriate values
-        z.start.setValue(self._scan_starts[row, column])
-        z.hide.setChecked(not self._tile_visibility[row, column])
-        z.top.setValue(self._scan_volumes[row, column] + self._scan_starts[row, column])
-
         # connect signals for each input
         for name in ['start', 'top', 'step', 'steps', 'range', 'above', 'below']:
             widget = getattr(z, name)
             widget.valueChanged.connect(lambda value, attr=name: self.update_scan(value, attr, row, column))
+            if self.apply_all.isChecked() and (row, column) != (0, 0):  # update widget with appropriate values
+                widget.setValue(getattr(self.z_plan_widgets[0, 0], name).value())
+        z.hide.toggled.connect(lambda value: self.update_scan(value, 'hide', row, column))
+        z.hide.setChecked(not self._tile_visibility[row, column])
 
         if self.apply_all.isChecked() and (row, column) != (0, 0):  # block signals from widget
             self.toggle_signals(z, True)
@@ -318,11 +319,11 @@ class ZPlanWidget(ZPlanWidgetMMCore):
 
     def _on_steps_changed(self, steps: int) -> None:
         """Overwrite so if steps increased, z volume is expanded"""
+
         if self._mode.value == 'top_bottom':
-            diff = steps - len(self.value())
+            diff = steps - (len(self.value())-1)
             value = (self.step.value() * diff) + self.top.value()
             self.top.setValue(value)
-
         elif self._mode.value == "range_around":
             value = (self.step.value() * steps) - 1
             self.range.blockSignals(True)

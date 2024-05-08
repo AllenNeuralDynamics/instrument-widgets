@@ -66,7 +66,7 @@ class TilePlanWidget(GridPlanWidgetMMCore):
             box.setDisabled(True)
             layout.addWidget(box, 1, i + 1)
 
-            anchor.toggled.connect(self.toggle_grid_position)
+            anchor.toggled.connect(lambda enable, index=i: self.toggle_grid_position(enable, index))
             layout.addWidget(anchor, 2, i + 1)
 
         self.stop_stage = QPushButton("HALT FOV")
@@ -84,14 +84,12 @@ class TilePlanWidget(GridPlanWidgetMMCore):
 
         self.show()
 
-    def toggle_grid_position(self, enable):
+    def toggle_grid_position(self, enable, index):
         """If grid is anchored, allow user to input grid position"""
 
-        for i in range(3):
-            if self.anchor_widgets[i].isChecked() != self.grid_position_widgets[i].isEnabled():  # button was toggled
-                self.grid_position_widgets[i].setEnabled(enable)
-                if not enable:  # Graph is not anchored
-                    self.grid_position_widgets[i].setValue(self.fov_position[i])
+        self.grid_position_widgets[index].setEnabled(enable)
+        if not enable:  # Graph is not anchored
+            self.grid_position_widgets[index].setValue(self.fov_position[index])
         self.relative_to.setDisabled(any([anchor.isChecked() for anchor in self.anchor_widgets]))
 
     @property

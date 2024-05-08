@@ -46,14 +46,11 @@ class ChannelPlanWidget(QWidget):
         table_row = table_row if table_row is not None else self.table.rowCount()
 
         if table_row >= self.table.rowCount():
-            self.table.insertRow(table_row)
+            self.table.insertRow(self.table.rowCount())
 
         self.tile_items[tile_row, tile_col] = {key: QTableWidgetItem(str(kwargs.get(key, ''))) for key in self.columns}
         for header_col, header in enumerate(self.columns):
             self.table.setItem(table_row, header_col, self.tile_items[tile_row, tile_col][header])
-
-    def update_tile(self, row, column):
-        """Update row number with the newest information"""
 
     def delete_row(self, row):
         """Delete row

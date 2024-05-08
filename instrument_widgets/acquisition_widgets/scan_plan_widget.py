@@ -17,7 +17,7 @@ class Mode(enum.Enum):
 
 
 class ScanPlanWidget(QWidget):
-    """Widget that organizes a matrix of ZPlanWidget"""
+    """Widget that organizes a matrix of ZPlanWidget and displays info on table"""
 
     scanChanged = Signal()
     tileAdded = Signal(int, int)
@@ -224,7 +224,6 @@ class ScanPlanWidget(QWidget):
         # added label identifying what tile it corresponds to
         z._grid_layout.addWidget(QLabel(f'({row}, {column})'), 7, 1)
 
-        #z.show()
         return z
 
     def toggle_signals(self, z, block):

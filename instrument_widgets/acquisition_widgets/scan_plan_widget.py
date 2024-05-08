@@ -21,7 +21,8 @@ class ScanPlanWidget(QWidget):
 
     scanChanged = Signal()
     tileAdded = Signal(int, int)
-    tileRemoved = Signal(int, int)
+    rowRemoved = Signal(int)
+    columnRemoved = Signal(int)
 
     def __init__(self, z_limits: [float] = None, unit: str = 'um'):
 
@@ -159,18 +160,17 @@ class ScanPlanWidget(QWidget):
 
             rows = value.rows
             cols = value.columns
-
             # close old row and column widget
             if rows - old_row < 0:
                 for i in range(rows, old_row):
                     for j in range(old_col):
-                        self.z_plan_widgets[i][j].close()
-                        self.tileRemoved.emit(i, j)
+                        self.z_plan_widgets[i, j].close()
+                    self.rowRemoved.emit(i)
             if cols - old_col < 0:
-                for i in range(old_row):
-                    for j in range(cols, old_col):
-                        self.z_plan_widgets[i][j].close()
-                        self.tileRemoved.emit(i, j)
+                for j in range(cols, old_col):
+                    for i in range(old_row):
+                        self.z_plan_widgets[i, j].close()
+                    self.columnRemoved.emit(j)
 
             # resize array to new size
             for array, name in zip([self.z_plan_widgets, self.tile_visibility, self.scan_starts, self.scan_volumes],

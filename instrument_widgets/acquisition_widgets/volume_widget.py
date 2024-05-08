@@ -74,6 +74,7 @@ class VolumeWidget(QWidget):
         self.layout.addWidget(self.channel_plan, 2, 0, 1, 2)
 
         # hook up tile_plan_widget signals for scan_plan_constructions, volume_model path, and tile start
+        self.tile_plan_widget.valueChanged.connect(lambda value: self.tile_plan_widget.setEnabled(False))
         self.tile_plan_widget.valueChanged.connect(self.tile_plan_changed)
         self.tile_starts[2].disconnect()  # disconnect to only trigger update graph once
         self.tile_starts[2].valueChanged.connect(lambda value: setattr(self.scan_plan_widget, 'grid_position', value))
@@ -82,8 +83,9 @@ class VolumeWidget(QWidget):
 
         # hook up scan_plan_widget signals to update grid and channel plan when tiles are changed
         self.scan_plan_widget.scanChanged.connect(self.update_model)
-        self.scan_plan_widget.tileAdded.connect(self.tile_added)
-        self.scan_plan_widget.tileRemoved.connect(self.channel_plan.delete_tile)
+        #self.scan_plan_widget.tileAdded.connect(self.tile_added)
+        # self.scan_plan_widget.rowRemoved.connect(self.channel_plan.delete_row)
+        # self.scan_plan_widget.columnRemoved.connect(self.channel_plan.delete_column)
         self.scan_plan_widget.apply_all.toggled.connect(self.toggle_apply_all)
 
         # update tile position if volume model is updated
@@ -150,14 +152,30 @@ class VolumeWidget(QWidget):
     def update_model(self):
         """When scan changes, update model"""
 
+        # if rows or columns removed, update table. Must do before updating graph
+        if self.channel_plan.tile_items.shape[0] > self.scan_plan_widget.z_plan_widgets.shape[0]:
+            for i in range(self.channel_plan.tile_items.shape[0], self.scan_plan_widget.z_plan_widgets.shape[0], -1):
+                self.channel_plan.delete_row(i-1)
+        elif self.channel_plan.tile_items.shape[1] > self.scan_plan_widget.z_plan_widgets.shape[1]:
+            for j in range(self.channel_plan.tile_items.shape[1], self.scan_plan_widget.z_plan_widgets.shape[1], -1):
+                self.channel_plan.delete_column(j-1)
+
         # When scan changes, update model
         setattr(self.volume_model, '_scan_volumes', self.scan_plan_widget.scan_volumes)
         setattr(self.volume_model, '_tile_visibility', self.scan_plan_widget.tile_visibility)
         setattr(self.volume_model, 'grid_coords', np.dstack((self.tile_plan_widget.tile_positions,
                                                              self.scan_plan_widget.scan_starts)))
 
+        #clear table and add back tiles in the correct order
+        self.channel_plan.table.clear()
+        self.channel_plan.table.setHorizontalHeaderLabels(self.channel_plan.columns)
+        self.channel_plan.table.setRowCount(0)
+        for tile in self.tile_plan_widget.value():
+            self.tile_added(tile.row, tile.col)
+
         if not self.anchor_widgets[2].isChecked():  # disable start widget for any new widgets
             self.disable_scan_start_widgets(True)
+        self.tile_plan_widget.setEnabled(True)
 
     def grid_plane_change(self, button):
         """Update grid plane and remap path
@@ -173,7 +191,6 @@ class VolumeWidget(QWidget):
         """Add new tile to channel_plan with relevant info"""
 
         self.channel_plan.table.blockSignals(True)
-
         z = self.scan_plan_widget.z_plan_widgets[row, column]
         kwargs = {'row, column': [row, column],
                   self.coordinate_plane[0]: self.tile_plan_widget.tile_positions[row][column][0],
@@ -182,7 +199,17 @@ class VolumeWidget(QWidget):
                   f'{self.coordinate_plane[2]} steps': z.steps.value(),
                   f'{self.coordinate_plane[2]} step size': z.step.value()}
 
-        self.channel_plan.add_tile(row, column, **kwargs)
+        if row + 1 > self.channel_plan.tile_items.shape[0]:  # add row
+            self.channel_plan.tile_items = np.vstack((self.channel_plan.tile_items, [{}] * self.channel_plan.tile_items.shape[1]))
+        if column + 1 > self.channel_plan.tile_items.shape[1]:  # add column
+            self.channel_plan.tile_items = np.hstack((self.channel_plan.tile_items, [[{}] for _ in range(self.channel_plan.tile_items.shape[0])]))
+
+        row_count = self.channel_plan.table.rowCount()
+        self.channel_plan.table.insertRow(row_count)
+
+        for header_col, header in enumerate(self.channel_plan.columns):
+            self.channel_plan.tile_items[row, column][header] = QTableWidgetItem(str(kwargs.get(header, '')))
+            self.channel_plan.table.setItem(row_count, header_col, self.channel_plan.tile_items[row, column][header])
 
         row_items = self.channel_plan.tile_items[row, column]
         # set correct cells disabled based on current widget state

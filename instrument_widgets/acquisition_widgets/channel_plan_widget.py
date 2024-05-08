@@ -33,7 +33,7 @@ class ChannelPlanWidget(QWidget):
         self.setLayout(layout)
 
     def add_tile(self, row, col, **kwargs):
-        """Add tile in the next available row
+        """Add tile to tile items
         :param row: row of the tile to be added NOT table row
         :param col: col of the tile to be added NOT table col"""
 
@@ -42,24 +42,39 @@ class ChannelPlanWidget(QWidget):
         if col + 1 > self.tile_items.shape[1]:  # add column
             self.tile_items = np.hstack((self.tile_items, [[{}] for _ in range(self.tile_items.shape[0])]))
 
-        row_count = self.table.rowCount()
-        self.table.insertRow(row_count)
-
-        for header_col, header in enumerate(self.columns):
-            self.tile_items[row, col][header] = QTableWidgetItem(str(kwargs.get(header, '')))
-            self.table.setItem(row_count, header_col, self.tile_items[row, col][header])
+        # row_count = self.table.rowCount()
+        # self.table.insertRow(row_count)
+        #
+        # for header_col, header in enumerate(self.columns):
+        #     self.tile_items[row, col][header] = QTableWidgetItem(str(kwargs.get(header, '')))
+        #     self.table.setItem(row_count, header_col, self.tile_items[row, col][header])
 
     def update_tile(self, row, column):
         """Update row number with the newest information"""
 
-    def delete_tile(self, row, column):
+    def delete_row(self, row):
+        """Delete row
+        :param row: row of the tile to be removed NOT table row"""
+
+        self.table.blockSignals(True)
+        # for j in range(self.tile_items.shape[1]):
+        #     print('removing', j, row, self.tile_items[row, j]['row, column'])
+        #     table_row = self.tile_items[row, j]['row, column'].row()
+        #     self.table.removeRow(table_row)
+        self.tile_items = np.delete(self.tile_items, row, axis=0)
+        self.table.blockSignals(False)
+
+    def delete_column(self, column):
         """Delete row
         :param row: row of the tile to be added NOT table row
         :param column: col of the tile to be added NOT table col"""
-        print('deleting')
+
         self.table.blockSignals(True)
-        table_row = self.tile_items[row, column]['row, column'].row()
-        self.table.removeRow(table_row)
+        # for i in range(self.tile_items.shape[0]):
+        #     print('removing',  i, column)
+        #     table_row = self.tile_items[i, column]['row, column'].row()
+        #     self.table.removeRow(table_row)
+        self.tile_items = np.delete(self.tile_items, column, axis=1)
         self.table.blockSignals(False)
 
     def reorder_graph(self, order):

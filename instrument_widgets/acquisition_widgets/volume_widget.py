@@ -3,7 +3,6 @@ from qtpy.QtWidgets import QWidget, QVBoxLayout, QCheckBox, QHBoxLayout, QLabel,
 from instrument_widgets.acquisition_widgets.scan_plan_widget import ScanPlanWidget
 from instrument_widgets.acquisition_widgets.volume_model import VolumeModel
 from instrument_widgets.acquisition_widgets.tile_plan_widget import TilePlanWidget
-from instrument_widgets.acquisition_widgets.channel_plan_widget import ChannelPlanWidget
 from qtpy.QtCore import Qt, Signal
 import numpy as np
 import useq
@@ -67,7 +66,8 @@ class VolumeWidget(QWidget):
         self.layout.addWidget(self.scan_plan_widget, 1, 0)
 
         # setup table
-        self.columns = ['row, column', *coordinate_plane, f'{coordinate_plane[2]} steps', f'{coordinate_plane[2]} step size']
+        self.columns = ['row, column', *coordinate_plane, f'{coordinate_plane[2]} max', f'{coordinate_plane[2]} steps',
+                        f'{coordinate_plane[2]} step size']
         self.tile_items = np.empty([1, 1], dtype=object)  # 2d array dictionary containing correct graph item
         self.tile_items[0, 0] = {}
 
@@ -191,8 +191,7 @@ class VolumeWidget(QWidget):
                   self.coordinate_plane[0]: self.tile_plan_widget.tile_positions[row][column][0],
                   self.coordinate_plane[1]: self.tile_plan_widget.tile_positions[row][column][1],
                   self.coordinate_plane[2]: z.start.value(),
-                  f'{self.coordinate_plane[2]} steps': z.steps.value(),
-                  f'{self.coordinate_plane[2]} step size': z.step.value()}
+                  f'{self.coordinate_plane[2]} max': z.value()[-1]}
 
         table_row = self.table.rowCount()
         self.table.insertRow(table_row)
@@ -230,11 +229,10 @@ class VolumeWidget(QWidget):
     def change_table(self, value, row, column):
         """If z widget is changed, update table"""
 
-        z = self.scan_plan_widget.z_plan_widgets[row, column]
         row_items = self.tile_items[row, column]
         self.undercover_update_item(value[0], row_items['z'])
-        self.undercover_update_item(len(value), row_items['z steps'])
-        self.undercover_update_item(z.step.value(), row_items['z step size'])
+        self.undercover_update_item(value[-1], row_items[f'{self.coordinate_plane[2]} max'])
+
 
     def undercover_update_item(self, value, item):
         """Update table with latest z value"""

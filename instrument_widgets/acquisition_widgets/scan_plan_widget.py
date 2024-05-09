@@ -6,7 +6,7 @@ import useq
 import enum
 import numpy as np
 from time import time
-
+from superqt.utils import signals_blocked
 
 class Mode(enum.Enum):
     """Recognized ZPlanWidget modes."""
@@ -207,7 +207,7 @@ class ScanPlanWidget(QWidget):
         z.setWindowTitle(f'({row}, {column})')
 
         # connect signals for each input
-        for name in ['start', 'top', 'step', 'steps', 'range', 'above', 'below']:
+        for name in ['start', 'top', 'range', 'above', 'below']:
             widget = getattr(z, name)
             widget.valueChanged.connect(lambda value, attr=name: self.update_scan(value, attr, row, column))
             if self.apply_all.isChecked() and (row, column) != (0, 0):  # update widget with appropriate values
@@ -231,7 +231,7 @@ class ScanPlanWidget(QWidget):
         :param z: z widget to toggle signals from
         :param block: boolean signifying block or unblock"""
 
-        for name in ['start', 'top', 'step', 'steps', 'range', 'above', 'below']:
+        for name in ['start', 'top', 'range', 'above', 'below']:
             getattr(z, name).blockSignals(block)
 
 class ZPlanWidget(ZPlanWidgetMMCore):
@@ -270,7 +270,7 @@ class ZPlanWidget(ZPlanWidgetMMCore):
         self.start.setRange(z_limits[0], z_limits[1])
         self._grid_layout.addWidget(QLabel("Start:"), 4, 0, Qt.AlignmentFlag.AlignRight)
         self._grid_layout.addWidget(self.start, 4, 1)
-
+        # Add hide checkbox
         self.hide = QCheckBox('Hide')
         self._grid_layout.addWidget(self.hide, 7, 0)
 
@@ -280,11 +280,14 @@ class ZPlanWidget(ZPlanWidgetMMCore):
         """Overwrite to change how z plan is calculated. Return a list of positions"""
 
         if self._mode.value == 'top_bottom':
-            steps = ceil((self.top.value() - self.start.value()) / self.step.value())
+            steps = ceil((self.top.value() - self.start.value()) / self.step.value()) if self.step.value() > 0 else 0
+            print(steps)
             if steps > 0:
-                return [self.start.value() + (self.step.value() * i) for i in range(steps)]
+                return [self.start.value() + (self.step.value() * i) for i in range(steps+1)]
+            elif steps < 0:
+                return [self.start.value() - (self.step.value() * i) for i in range(abs(steps)+1)]
             else:
-                return [self.start.value() - (self.step.value() * i) for i in range(abs(steps - 1))]
+                return [0]
         elif self._mode.value == 'range_around':
             return [self.start.value() + i for i in useq.ZRangeAround(range=round(self.range.value(), 4),
                                                                       step=self.step.value(),
@@ -311,27 +314,10 @@ class ZPlanWidget(ZPlanWidgetMMCore):
             self.steps.blockSignals(False)
         self.valueChanged.emit(val)
 
-    def mousePressEvent(self, a0) -> None:
-        """overwrite to emit a clicked signal"""
-        self.clicked.emit()
-        super().mousePressEvent(a0)
-
     def _on_steps_changed(self, steps: int) -> None:
-        """Overwrite so if steps increased, z volume is expanded"""
-
-        if self._mode.value == 'top_bottom':
-            diff = steps - (len(self.value())-1)
-            value = (self.step.value() * diff) + self.top.value()
-            self.top.setValue(value)
-        elif self._mode.value == "range_around":
-            value = (self.step.value() * steps) - 1
-            self.range.blockSignals(True)
-            self.range.setValue(value)
-            self.range.blockSignals(False)
-        elif self._mode.value == "above_below":
-            # don't allow changes to be made in this mode?
-            value = steps - 1 if steps > len(self.value()) else steps + 1
-            self.steps.blockSignals(True)
-            self.steps.setValue(value)
-            self.steps.blockSignals(False)
+        """Overwrite to round step to stay within z range"""
+        if steps:
+            with signals_blocked(self.step):
+                print(self.currentZRange() / steps)
+                self.step.setValue(self.currentZRange() / steps)
         self._on_change(update_steps=False)

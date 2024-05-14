@@ -141,8 +141,6 @@ class ScanPlanWidget(QWidget):
                     getattr(z, name).setValue(widget_value)
                 z._on_change()  # update widget
 
-        self.scanChanged.emit()
-
     def toggle_mode(self, action):
         """Toggle mode of widgets if 0,0 has changed and apply all is checked"""
 
@@ -207,7 +205,7 @@ class ScanPlanWidget(QWidget):
         z.setWindowTitle(f'({row}, {column})')
 
         # connect signals for each input
-        for name in ['start', 'top', 'range', 'above', 'below']:
+        for name in ['start', 'top', 'step', 'steps', 'range', 'above', 'below']:
             widget = getattr(z, name)
             widget.valueChanged.connect(lambda value, attr=name: self.update_scan(value, attr, row, column))
             if self.apply_all.isChecked() and (row, column) != (0, 0):  # update widget with appropriate values
@@ -231,7 +229,7 @@ class ScanPlanWidget(QWidget):
         :param z: z widget to toggle signals from
         :param block: boolean signifying block or unblock"""
 
-        for name in ['start', 'top', 'range', 'above', 'below']:
+        for name in ['start', 'top', 'step', 'steps', 'range', 'above', 'below']:
             getattr(z, name).blockSignals(block)
 
 class ZPlanWidget(ZPlanWidgetMMCore):
@@ -260,7 +258,7 @@ class ZPlanWidget(ZPlanWidgetMMCore):
                 elif widget.text() == '\u00b5m':
                     widget.setText(unit)
 
-        #self._range_readout.hide()
+        self._set_row_visible(0, False) # hide steps row
         self._bottom_to_top.hide()
         self._top_to_bottom.hide()
         self.layout().children()[-1].itemAt(2).widget().hide()  # Direction label
@@ -277,27 +275,14 @@ class ZPlanWidget(ZPlanWidgetMMCore):
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
 
     def value(self):
-        """Overwrite to change how z plan is calculated. Return a list of positions"""
+        """Overwrite to change how z plan is calculated. Return a list of start and end positions"""
 
         if self._mode.value == 'top_bottom':
-            steps = ceil((self.top.value() - self.start.value()) / self.step.value()) if self.step.value() > 0 else 0
-            print(steps)
-            if steps > 0:
-                return [self.start.value() + (self.step.value() * i) for i in range(steps+1)]
-            elif steps < 0:
-                return [self.start.value() - (self.step.value() * i) for i in range(abs(steps)+1)]
-            else:
-                return [0]
+            return [self.start.value(), self.top.value()]
         elif self._mode.value == 'range_around':
-            return [self.start.value() + i for i in useq.ZRangeAround(range=round(self.range.value(), 4),
-                                                                      step=self.step.value(),
-                                                                      go_up=self._bottom_to_top.isChecked())]
+            return [self.start.value() + self.range.value()/2, self.start.value() - self.range.value()/2]
         elif self._mode.value == 'above_below':
-            return [self.start.value() + i for i in useq.ZAboveBelow(
-                above=round(self.above.value(), 4),
-                below=round(self.below.value(), 4),
-                step=self.step.value(),
-                go_up=self._bottom_to_top.isChecked())]
+            return [self.start.value()+self.above.value(), self.start.value()-self.below.value()]
 
     def _on_change(self, update_steps: bool = True):
         """Overwrite to change setting step behaviour"""

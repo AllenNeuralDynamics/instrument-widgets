@@ -1,6 +1,6 @@
 from qtpy.QtCore import Signal, Slot, QTimer
 from qtpy.QtGui import QIntValidator, QDoubleValidator
-from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QMainWindow
+from qtpy.QtWidgets import QWidget, QLineEdit, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QMainWindow, QGridLayout
 from inspect import currentframe
 import importlib
 import enum
@@ -194,7 +194,10 @@ def create_widget(struct: str, *args, **kwargs):
     if struct == 'V' or struct == 'H':
         layout = layouts[struct]
         for arg in [*kwargs.values(), *args]:
-            layout.addWidget(arg)
+            try:
+                layout.addWidget(arg)
+            except TypeError:
+                layout.addLayout(arg)
 
     elif struct == 'VH' or 'HV':
         bin0 = {}

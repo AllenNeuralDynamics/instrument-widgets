@@ -18,11 +18,13 @@ class ChannelPlanWidget(QTabWidget):
 
         super().__init__()
 
-        self.channels = channels
+        self.possible_channels = channels
+        self.channels = []
         self.settings = settings
 
         self.steps = {}  # dictionary of number of steps for each tile in each channel
         self.step_size = {}  # dictionary of step size for each tile in each channel
+        self.prefix = {}  # dictionary of prefix for each tile in each channel
 
         self._tile_volumes = np.zeros([0, 0], dtype=float)  # array of tile starts and ends. Constant for every channel
 
@@ -31,14 +33,16 @@ class ChannelPlanWidget(QTabWidget):
         self.setTabBar(self.tab_bar)
 
         self.channel_order = QComboBox()
-        self.channel_order.addItems(['Sequential', 'Interleaved', ])
+        self.channel_order.addItems(['per Tile', 'per Volume', ])
         self.setCornerWidget(self.channel_order)
+        self.mode = self.channel_order.currentText()
+        self.channel_order.currentTextChanged.connect(lambda value: setattr(self, 'mode', value))
 
         # add tab with button to add channels
         self.add_tool = QToolButton()
         self.add_tool.setText('+')
         menu = QMenu()
-        for channel in self.channels:
+        for channel in self.possible_channels:
             action = QAction(str(channel), self)
             action.triggered.connect(lambda clicked, ch=channel: self.add_channel(ch))
             menu.addAction(action)
@@ -47,19 +51,21 @@ class ChannelPlanWidget(QTabWidget):
         self.insertTab(0, QWidget(), '')  # insert dummy qwidget
         self.tab_bar.setTabButton(0, QTabBar.RightSide, self.add_tool)
 
-        self._apply_all = True  # external flag to dictate behaviour of added tab
+        # reorder channels if tabbar moved
+        self.tab_bar.tabMoved.connect(lambda:
+                                      setattr(self, 'channels', [self.tabText(ch) for ch in range(self.count() - 1)]))
+        self._apply_to_all = True  # external flag to dictate behaviour of added tab
 
     @property
-    def apply_all(self):
-        return self._apply_all
+    def apply_to_all(self):
+        return self._apply_to_all
 
-    @apply_all.setter
-    def apply_all(self, value):
+    @apply_to_all.setter
+    def apply_to_all(self, value):
         """When apply all is toggled, update existing channels"""
 
-        if self._apply_all != value:
-            for tab_index in range(self.count() - 1):  # skip add tab
-                channel = self.tabText(tab_index)
+        if self._apply_to_all != value:
+            for channel in self.channels:
                 table = getattr(self, f'{channel}_table')
 
                 for i in range(1, table.rowCount()):  # skip first row
@@ -68,7 +74,7 @@ class ChannelPlanWidget(QTabWidget):
                         self.enable_item(item, not value)
                         if value:
                             item.setText(table.item(0, j).text())
-        self._apply_all = value
+        self._apply_to_all = value
 
     @property
     def tile_volumes(self):
@@ -78,14 +84,14 @@ class ChannelPlanWidget(QTabWidget):
     def tile_volumes(self, value: np.array):
         """When tile dims is updated, update size of channel arrays"""
 
-        for tab_index in range(self.count() - 1):  # skip add tab
-            channel = self.tabText(tab_index)
+        for channel in self.channels:
             table = getattr(self, f'{channel}_table')
             for i in range(table.columnCount() - 1):  # skip row, column
                 header = table.horizontalHeaderItem(i).text()
                 getattr(self, header)[channel] = np.resize(getattr(self, header)[channel], value.shape)
             self.step_size[channel] = np.resize(self.step_size[channel], value.shape)
             self.steps[channel] = np.resize(self.steps[channel], value.shape)
+            self.prefix[channel] = np.resize(self.prefix[channel], value.shape)
 
         self._tile_volumes = value
 
@@ -108,8 +114,8 @@ class ChannelPlanWidget(QTabWidget):
         table = getattr(self, f'{channel}_table')
         table.cellChanged.connect(self.cell_edited)
 
-        columns = ['step_size', 'steps']
-        for device_type, devices in self.channels[channel].items():
+        columns = ['step_size', 'steps', 'prefix']
+        for device_type, devices in self.possible_channels[channel].items():
             for device in devices:
                 for setting in self.settings.get(device_type, []):
                     if not hasattr(self, f'{device}_{setting}'):
@@ -120,6 +126,7 @@ class ChannelPlanWidget(QTabWidget):
 
         self.steps[channel] = np.zeros(self._tile_volumes.shape, dtype=int)
         self.step_size[channel] = np.zeros(self._tile_volumes.shape, dtype=float)
+        self.prefix[channel] = np.zeros(self._tile_volumes.shape, dtype=str)
 
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
@@ -142,6 +149,8 @@ class ChannelPlanWidget(QTabWidget):
             if action.text() == channel:
                 menu.removeAction(action)
         self.add_tool.setMenu(menu)
+
+        self.channels = [channel] + self.channels
 
         self.channelAdded.emit(channel)
 
@@ -169,11 +178,13 @@ class ChannelPlanWidget(QTabWidget):
                 table.setItem(table_row, column, item)
                 item.setText(str(array[*tile]))
                 if table_row != 0:  # first row/tile always enabled
-                    self.enable_item(item, not self.apply_all)
+                    self.enable_item(item, not self.apply_to_all)
         table.blockSignals(False)
 
     def remove_channel(self, channel):
         """Remove channel from acquisition"""
+
+        self.channels.remove(channel)
 
         table = getattr(self, f'{channel}_table')
         index = self.indexOf(table)
@@ -205,7 +216,7 @@ class ChannelPlanWidget(QTabWidget):
 
         if column in [0, 1]:
             volume = self.tile_volumes[*tile_index]
-            index = tile_index if not self.apply_all else [slice(None), slice(None)]
+            index = tile_index if not self.apply_to_all else [slice(None), slice(None)]
             if column == 0:  # step_size changed so round to fit in volume
                 steps = round(volume / float(table.item(row, 0).text()))
                 step_size = round(volume / steps, 4) if steps != 0 else 0
@@ -219,8 +230,10 @@ class ChannelPlanWidget(QTabWidget):
             table.item(row, 1).setText(str(steps))
 
         array = getattr(self, table.horizontalHeaderItem(column).text())[channel]
-        if self.apply_all:
-            array[:, :] = float(table.item(row, column).text())  # TODO: how to deal with different types?
+        value = float(table.item(row, column).text()) if table.item(row, column).text().isdigit() \
+            else str(table.item(row, column).text())
+        if self.apply_to_all:
+            array[:, :] = value
             for i in range(1, table.rowCount()):
                 item_0 = table.item(0, column)
                 table.item(i, column).setText(item_0.text())
@@ -229,7 +242,7 @@ class ChannelPlanWidget(QTabWidget):
                 elif column == 1:  # update step_szie as well
                     table.item(i, column - 1).setText(str(step_size))
         else:
-            array[*tile_index] = float(table.item(row, column).text())
+            array[*tile_index] = value
 
         table.blockSignals(False)
 

@@ -41,8 +41,9 @@ class ScanPlanWidget(QWidget):
         checkbox_layout = QHBoxLayout()
         self.apply_all = QCheckBox('Apply to All')
         self.apply_all.setChecked(True)
+        self.apply_to_all = True
         self.apply_all.toggled.connect(self.toggle_apply_all)
-        # self.apply_all.toggled.connect(self.grid_coord_construction)
+        self.apply_all.toggled.connect(lambda checked: setattr(self, 'apply_to_all', checked))
         checkbox_layout.addWidget(self.apply_all)
         self.setLayout(checkbox_layout)
 

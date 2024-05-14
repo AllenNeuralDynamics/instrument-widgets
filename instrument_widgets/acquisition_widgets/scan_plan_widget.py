@@ -83,7 +83,7 @@ class ScanPlanWidget(QWidget):
 
     @property
     def scan_volumes(self):
-        """Return the start position of grid"""
+        """Return the volume of grid"""
         return self._scan_volumes
 
     def update_scan(self, widget_value, attr, row, column):

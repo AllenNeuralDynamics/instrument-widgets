@@ -243,14 +243,14 @@ class ChannelPlanTabBar(QTabBar):
         self.tabMoved.connect(self.tab_index_check)
 
     def tab_index_check(self, prev_index, curr_index):
-        """Keep last two tabs as last tabs"""
+        """Keep last tab as last tab"""
 
-        if prev_index == self.count() - 1 or prev_index == self.count() - 2:
+        if prev_index == self.count() - 1:
             self.moveTab(curr_index, prev_index)
 
     def mouseMoveEvent(self, ev):
-        """Make last two tabs immovable"""
+        """Make last tab immovable"""
         index = self.currentIndex()
-        if index == self.count() - 1 or index == self.count() - 2:  # last two tabs are immovable
+        if index == self.count() - 1:  # last tab is immovable
             return
         super().mouseMoveEvent(ev)

@@ -233,8 +233,13 @@ class VolumeWidget(QWidget):
         for var in disable:
             items[var].setFlags(flags)
 
-        # connect z widget signals to trigger update
+        # connect z widget signals to trigger update. Try and disconnect to not send signal multiple times
+        try:
+            z.valueChanged.disconnect()
+        except TypeError:   # signal not connected
+            pass
         z.valueChanged.connect(lambda value: self.change_table(value, row, column))
+
 
         self.table.blockSignals(False)
 

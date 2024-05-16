@@ -90,7 +90,7 @@ class TilePlanWidget(GridPlanWidgetMMCore):
         self.grid_position_widgets[index].setEnabled(enable)
         if not enable:  # Graph is not anchored
             self.grid_position_widgets[index].setValue(self.fov_position[index])
-        self.relative_to.setDisabled(any([anchor.isChecked() for anchor in self.anchor_widgets]))
+        #self.relative_to.setDisabled(any([anchor.isChecked() for anchor in self.anchor_widgets]))
 
     @property
     def fov_position(self):
@@ -98,6 +98,7 @@ class TilePlanWidget(GridPlanWidgetMMCore):
 
     @fov_position.setter
     def fov_position(self, value):
+
         self._fov_position = value
         for i, anchor in enumerate(self.anchor_widgets):
             if not anchor.isChecked():
@@ -135,7 +136,6 @@ class TilePlanWidget(GridPlanWidgetMMCore):
         else:
             for tile in self.value():
                 coords[tile.row][tile.col] = [tile.x, tile.y]
-
         return coords
 
     def value(self):

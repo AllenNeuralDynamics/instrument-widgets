@@ -105,6 +105,7 @@ class VolumeWidget(QWidget):
         # hook up scan_plan_widget signals to update grid and channel plan when tiles are changed
         self.scan_plan_widget.scanChanged.connect(self.update_model)
         self.scan_plan_widget.apply_all.toggled.connect(self.toggle_apply_all)
+        self.scan_plan_widget.tileAdded.connect(self.tile_added)
 
         self.limits = limits
         self.coordinate_plane = coordinate_plane
@@ -137,6 +138,7 @@ class VolumeWidget(QWidget):
                 # update scan plan widget
                 if i == 2:
                     self.scan_plan_widget.grid_position = value[2]
+
         # update model
         self.volume_model.fov_position = value
 
@@ -164,6 +166,14 @@ class VolumeWidget(QWidget):
                                          if self.coordinate_plane[i] in self.volume_model.grid_plane else 0. for i in
                                          range(3)] for t in value])  # update path
 
+        #update scanning coords of table
+        for tile in value:
+            table_row = self.table.findItems(str([tile.row, tile.col]), Qt.MatchExactly)[0].row()
+            scan_dim_0 = self.table.item(table_row, 1)
+            scan_dim_1 = self.table.item(table_row, 2)
+            self.undercover_update_item(self.tile_plan_widget.tile_positions[tile.row][tile.col][0], scan_dim_0)
+            self.undercover_update_item(self.tile_plan_widget.tile_positions[tile.row][tile.col][1], scan_dim_1)
+
     def update_model(self):
         """When scan changes, update model"""
 
@@ -185,7 +195,7 @@ class VolumeWidget(QWidget):
             self.table.clearContents()
             self.table.setRowCount(0)
             for tile in self.tile_plan_widget.value():
-                self.tile_added(tile.row, tile.col)
+                self.add_tile_to_table(tile.row, tile.col)
 
             show_row, show_col = [int(x) for x in self.table.item(current_row, 0).text() if x.isdigit()]
             self.scan_plan_widget.z_plan_widgets[show_row, show_col].setVisible(True)
@@ -196,6 +206,9 @@ class VolumeWidget(QWidget):
             channel = self.channel_plan.tabText(tab_index)
             self.channel_plan.add_channel_rows(channel, scan_order)
 
+        # resize table
+        self.table.resizeColumnsToContents()
+
         if not self.anchor_widgets[2].isChecked():  # disable start widget for any new widgets
             self.disable_scan_start_widgets(True)
 
@@ -205,8 +218,8 @@ class VolumeWidget(QWidget):
         scan_order = [[t.row, t.col] for t in self.tile_plan_widget.value()]
         self.channel_plan.add_channel_rows(channel, scan_order)
 
-    def tile_added(self, row, column):
-        """Add new tile to table with relevant info"""
+    def add_tile_to_table(self, row, column):
+        """Add tile to table with relevant info"""
 
         self.table.blockSignals(True)
         z = self.scan_plan_widget.z_plan_widgets[row, column]
@@ -215,7 +228,6 @@ class VolumeWidget(QWidget):
                   self.coordinate_plane[1]: self.tile_plan_widget.tile_positions[row][column][1],
                   self.coordinate_plane[2]: z.value()[0],
                   f'{self.coordinate_plane[2]} max': z.value()[-1]}
-
         table_row = self.table.rowCount()
         self.table.insertRow(table_row)
         items = {k: QTableWidgetItem(str(v)) for k, v in kwargs.items()}
@@ -233,19 +245,20 @@ class VolumeWidget(QWidget):
         for var in disable:
             items[var].setFlags(flags)
 
-        # connect z widget signals to trigger update. Try and disconnect to not send signal multiple times
-        try:
-            z.valueChanged.disconnect()
-        except TypeError:   # signal not connected
-            pass
-        z.valueChanged.connect(lambda value: self.change_table(value, row, column))
-
-
         self.table.blockSignals(False)
 
         # add new tile to layout
         self.layout.addWidget(self.scan_plan_widget.z_plan_widgets[row, column], 2, 0)
         self.scan_plan_widget.z_plan_widgets[row, column].setVisible(False)
+
+    def tile_added(self, row, column):
+        """Connect new tile to proper signals. Only do when tile added to scan, not to table, to avoid connect signals
+        multiple times"""
+
+        # connect z widget signals to trigger update
+        z = self.scan_plan_widget.z_plan_widgets[row, column]
+        z.valueChanged.connect(lambda value: self.change_table(value, row, column))
+
 
     def grid_plane_change(self, button):
         """Update grid plane and remap path
@@ -404,14 +417,19 @@ class VolumeWidget(QWidget):
 
         tile_dict = {
             'channel': channel,
-            'position': {k:self.table.item(table_row, j + 1).text() for j, k in enumerate(self.columns[1:-1])},
+            'position': {k: self.table.item(table_row, j + 1).text() for j, k in enumerate(self.columns[1:-1])},
             'tile_number': table_row,
         }
 
         # load channel plan values
-        ch_table = getattr(self.channel_plan, f'{channel}_table')
-        for name in ['steps', 'step_size', 'prefix',
-                     *[ch_table.horizontalHeaderItem(i).text() for i in range(ch_table.columnCount() - 1)]]:
+        for device_type, devices in self.channel_plan.possible_channels[channel].items():
+            for device in devices:
+                tile_dict[device] = {}
+                for setting in self.channel_plan.settings.get(device_type, []):
+                    array = getattr(self.channel_plan, f'{device}_{setting}')[channel]
+                    tile_dict[device][setting] = array[row, column]
+
+        for name in ['steps', 'step_size', 'prefix']:
             array = getattr(self.channel_plan, name)[channel]
             tile_dict[name] = array[row, column]
 

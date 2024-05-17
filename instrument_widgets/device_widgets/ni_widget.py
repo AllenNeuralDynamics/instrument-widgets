@@ -214,6 +214,7 @@ class NIWidget(BaseDeviceWidget):
 
     def create_tree_widget(self, name, parent=None):
         """Recursive function to format nested dictionary of ni task items"""
+
         parent = self.tree if parent is None else parent
         # TODO: This is haaaaaacky. but might be good for now
         dictionary = self.mappedpathGet(self.exposed_branches.copy(), name.split('.'))

@@ -206,9 +206,6 @@ class VolumeWidget(QWidget):
             channel = self.channel_plan.tabText(tab_index)
             self.channel_plan.add_channel_rows(channel, scan_order)
 
-        # resize table
-        self.table.resizeColumnsToContents()
-
         if not self.anchor_widgets[2].isChecked():  # disable start widget for any new widgets
             self.disable_scan_start_widgets(True)
 

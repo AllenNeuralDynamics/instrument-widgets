@@ -71,7 +71,6 @@ class VolumeModel(GLViewWidget):
 
         self.valueChanged[str].connect(self.update_model)
         self.resized.connect(self._update_opts)
-        self.show()
 
         self._update_opts()
 
